@@ -1,0 +1,39 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: postgres
+    restart: always
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: apppass
+      POSTGRES_DB: appdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  ansible-api:
+    build: ../ansible-api
+    container_name: ansible-api
+    environment:
+      ANSIBLE_INVENTORY: /ansible/inventories/dev/hosts.ini
+    volumes:
+      - ../ansible:/ansible
+    ports:
+      - "5000:5000"
+
+  mock-switch:
+    image: lscr.io/linuxserver/openssh-server:latest
+    container_name: mock-switch
+    environment:
+      PASSWORD_ACCESS: "true"
+      USER_NAME: "admin"
+      USER_PASSWORD: "admin123"
+      SUDO_ACCESS: "false"
+    ports:
+      - "2222:2222"
+
+volumes:
+  pgdata:
