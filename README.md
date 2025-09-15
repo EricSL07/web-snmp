@@ -16,27 +16,30 @@ Integração entre **Next.js** e **Zabbix** via API JSON-RPC, com suporte adicio
 ## 🚀 1) Clonar o projeto
 
 ```bash
-git clone <SEU_REPO_URL>.git
-cd <SEU_REPO_DIR>
+git clone https://github.com/EricSL07/web-snmp.git
+cd web-snmp
 ````
 
 ---
 
 ## ⚙️ 2) Variáveis de ambiente (Next.js)
 
-Crie o arquivo `.env.local` na raiz do app Next.js (ex.: `apps/web/.env.local`) com:
+Crie o arquivo `.env` na raiz do app Next.js (ex.: `web-snmp/.env`) com:
 
 ```env
+DATABASE_URL="postgresql://app:apppass@localhost:5432/appdb?schema=public"
+ANSIBLE_API_URL=http://localhost:5000
 ZABBIX_URL=http://localhost:8080/api_jsonrpc.php
 ZABBIX_USER=Admin
 ZABBIX_PASSWORD=zabbix
+
 ```
 
 ---
 
 ## 🐳 3) Subir a infraestrutura com Docker
 
-Se o `docker-compose.yml` estiver em `infra/`:
+Se o `docker-compose.yml` está em `infra/`:
 
 ```bash
 cd infra
@@ -45,12 +48,12 @@ docker compose up -d
 
 Isso deve subir:
 
-* `app-postgres` (banco do app)
+* `app-postgres` 
 * `zabbix-postgres`
 * `zabbix-server`
-* `zabbix-web` (porta **8080** → API/GUI)
-* `ansible-api` (opcional)
-* `mock-switch` (opcional)
+* `zabbix-web` 
+* `ansible-api` 
+* `mock-switch` 
 
 ### Verificar status e logs
 
@@ -80,7 +83,7 @@ curl -X POST http://localhost:8080/api_jsonrpc.php \
 No diretório do app Next.js:
 
 ```bash
-cd <RAIZ_DO_APP_NEXT>
+cd web-snmp
 npm install
 ```
 
@@ -104,7 +107,25 @@ npm run start
 O app estará disponível em `http://localhost:3000`.
 
 ---
+## 5.2) Problemas com o Prisma
+# Instalar prisma dentro do diretório /app
+´´´bash
+npm i -D prisma
+npm i @prisma/client
+npx prisma init
+´´´
 
+# Criar as tabelas
+´´´bash
+npx prisma migrate dev --name init
+# (seeder rodará se existir prisma/seed.ts
+
+# garantir o client
+npx prisma generate
+
+´´´
+
+---
 ## ✅ 6) Testes de verificação (cURL)
 
 ### 6.1 Health check do Zabbix
