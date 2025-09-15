@@ -35,5 +35,46 @@ services:
     ports:
       - "2222:2222"
 
+  zabbix-postgres:
+    image: postgres:15
+    container_name: zabbix-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: zabbix
+      POSTGRES_PASSWORD: zabbix
+      POSTGRES_DB: zabbix
+    volumes:
+      - zabbix-db:/var/lib/postgresql/data
+
+  zabbix-server:
+    image: zabbix/zabbix-server-pgsql:alpine-latest
+    container_name: zabbix-server
+    restart: unless-stopped
+    environment:
+      DB_SERVER_HOST: zabbix-postgres   # 👈 apontando pro serviço correto
+      POSTGRES_USER: zabbix
+      POSTGRES_PASSWORD: zabbix
+    depends_on:
+      - zabbix-postgres
+    ports:
+      - "10051:10051"
+
+  zabbix-web:
+    image: zabbix/zabbix-web-nginx-pgsql:alpine-latest
+    container_name: zabbix-web
+    restart: unless-stopped
+    environment:
+      DB_SERVER_HOST: zabbix-postgres   # 👈 idem
+      POSTGRES_USER: zabbix
+      POSTGRES_PASSWORD: zabbix
+      ZBX_SERVER_HOST: zabbix-server
+      PHP_TZ: America/Sao_Paulo
+    depends_on:
+      - zabbix-postgres
+      - zabbix-server
+    ports:
+      - "8080:8080"
+
 volumes:
   pgdata:
+  zabbix-db:
