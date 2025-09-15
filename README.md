@@ -109,6 +109,7 @@ O app estará disponível em `http://localhost:3000`.
 ---
 ## 5.2) Problemas com o Prisma
 # Instalar prisma dentro do diretório /app
+
 ´´´bash
 npm i -D prisma
 npm i @prisma/client
@@ -116,11 +117,12 @@ npx prisma init
 ´´´
 
 # Criar as tabelas
+
 ´´´bash
 npx prisma migrate dev --name init
-# (seeder rodará se existir prisma/seed.ts
+(seeder rodará se existir prisma/seed.ts
 
-# garantir o client
+garantir o client
 npx prisma generate
 
 ´´´
