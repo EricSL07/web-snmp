@@ -1,7 +1,3 @@
-Perfeito 🚀 — segue tudo já formatado em **README.md** com título, seções e exemplos prontos.
-Você só precisa ajustar os caminhos (`<SEU_REPO_URL>`, `<RAIZ_DO_APP_NEXT>`) para refletir a estrutura real do seu projeto.
-
----
 # Projeto Integrador — Next.js + Zabbix + Ansible
 
 Integração entre **Next.js** e **Zabbix** via API JSON-RPC, com suporte adicional a **Ansible API** e ambiente de teste com **mock-switch**.  
