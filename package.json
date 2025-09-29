@@ -6,7 +6,10 @@
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:apis": "node tests/test-apis.js",
+    "test:quick": "bash tests/test-curl.sh",
+    "test:integration": "bash tests/test-ansible-mock.sh"
   },
   "dependencies": {
     "@prisma/client": "^6.16.2",
@@ -17,9 +20,6 @@
     "next": "15.5.2",
     "react": "19.1.0",
     "react-chartjs-2": "^5.3.0",
-    "@prisma/client": "^6.16.1",
-    "next": "15.5.2",
-    "react": "19.1.0",
     "react-dom": "19.1.0"
   },
   "devDependencies": {
@@ -30,10 +30,11 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "axios": "^1.6.0",
     "eslint": "^9",
     "eslint-config-next": "15.5.2",
     "prisma": "^6.16.2",
-    "prisma": "^6.16.1",
+    "ssh2": "^1.15.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
