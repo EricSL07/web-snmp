@@ -45,7 +45,7 @@ export default function RegistrarPage() {
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-700">
       <div className="bg-gray-200 p-8 rounded-lg shadow-lg w-full max-w-sm text-center">
-        <h1 className="text-3xl font-bold mb-8 font-mono tracking-widest">WEB-SNMP</h1>
+        <h1 className="text-black text-3xl font-bold mb-8 font-mono tracking-widest">WEB-SNMP</h1>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           {/* Mostra a mensagem de erro, se houver */}
           {error && <p className="text-red-500 bg-red-100 p-2 rounded-lg">{error}</p>}

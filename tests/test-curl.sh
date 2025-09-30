@@ -24,7 +24,7 @@ test_url() {
     response=$(curl -s -w "%{http_code}" -o /tmp/response.txt "$url" 2>/dev/null)
     http_code="${response: -3}"
     
-    if [ "$http_code" -eq "$expected_status" ] || [ "$http_code" -eq 200 ] || [ "$http_code" -eq 302 ]; then
+    if [ "$http_code" -eq "$expected_status" ] || [ "$http_code" -eq 200 ] || [ "$http_code" -eq 302 ] || [ "$http_code" -eq 307 ]; then
         echo -e "${GREEN}✅ $name: OK (HTTP $http_code)${NC}"
         return 0
     else

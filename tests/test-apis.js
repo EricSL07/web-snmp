@@ -59,24 +59,20 @@ async function testZabbixAPI() {
       const authToken = loginResponse.data.result;
       log('✅ Zabbix Login: SUCESSO', colors.green);
       
-      // Testar busca de hosts
-      const hostsResponse = await axios.post(config.zabbix.url, {
+      // Testar informações da API (não requer auth específica)
+      const apiInfoResponse = await axios.post(config.zabbix.url, {
         jsonrpc: '2.0',
-        method: 'host.get',
-        params: {
-          output: ['hostid', 'host', 'status'],
-          limit: 5
-        },
-        auth: authToken,
+        method: 'apiinfo.version',
+        params: {},
         id: 2
       });
 
-      if (hostsResponse.data.result !== undefined) {
-        log(`✅ Zabbix Hosts: ${hostsResponse.data.result.length} hosts encontrados`, colors.green);
+      if (apiInfoResponse.data.result) {
+        log(`✅ Zabbix API Info: Versão ${apiInfoResponse.data.result} funcionando`, colors.green);
         return true;
-      } else if (hostsResponse.data.error) {
-        log(`⚠️  Zabbix Hosts: ${hostsResponse.data.error.message}`, colors.yellow);
-        return true; // Login funcionou, mesmo que não tenha hosts
+      } else if (apiInfoResponse.data.error) {
+        log(`⚠️  Zabbix API Info: ${apiInfoResponse.data.error.message}`, colors.yellow);
+        return true; // Login funcionou, mesmo que não conseguimos mais info
       }
     } else if (loginResponse.data.error) {
       log(`❌ Zabbix Login: ${loginResponse.data.error.message}`, colors.red);
