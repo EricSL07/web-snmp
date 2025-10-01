@@ -1,0 +1,12 @@
+---
+- name: Teste de conectividade (sem Python, via raw)
+  hosts: mock
+  gather_facts: no
+  tasks:
+    - name: responder PONG
+      ansible.builtin.raw: "echo PONG"
+      register: out
+
+    - name: exibir saída
+      ansible.builtin.debug:
+        var: out.stdout
