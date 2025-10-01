@@ -1,104 +1,30 @@
-# 🌐 Web-SNMP
+# Projeto Integrador — Next.js + Zabbix + Ansible
 
-Sistema web integrado para monitoramento e gerenciamento de switches de rede usando SNMP, Zabbix, Ansible e interface Next.js.
+Integração entre **Next.js** e **Zabbix** via API JSON-RPC, com suporte adicional a **Ansible API** e ambiente de teste com **mock-switch**.  
 
-## 📋 Sobre o Projeto
+---
 
-O Web-SNMP é uma solução completa que combina monitoramento de rede, automação e gerenciamento através de uma interface web moderna. O projeto integra múltiplas tecnologias para fornecer uma plataforma robusta de gerenciamento de infraestrutura de rede.
+## 📦 Requisitos
 
-### 🏗️ Arquitetura
+- **Git**
+- **Docker** e **Docker Compose** (v2+)
+- **Node.js** 18+ (recomendado 20+) e **npm** (ou pnpm/yarn)
+- **cURL** para testes
 
-```
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   Frontend      │    │   APIs & Monit.  │    │  Infraestrutura │
-│                 │    │                  │    │                 │
-│ • Next.js       │◄──►│ • Zabbix API     │◄──►│ • PostgreSQL    │
-│ • Prisma Studio │    │ • Ansible API    │    │ • Mock Switch   │
-│ • Dashboard     │    │ • REST Endpoints │    │ • Docker        │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
-```
+---
 
-## 🚀 Funcionalidades
-
-### 📊 **Monitoramento**
-- Interface web para Zabbix
-- Dashboard com métricas em tempo real
-- Alertas e notificações
-- Histórico de performance
-
-### 🔧 **Automação**
-- Execução de playbooks Ansible via API
-- Configuração automática de switches
-- Scripts de manutenção
-- Comandos remotos via SSH
-
-### 👥 **Gerenciamento**
-- Sistema de autenticação JWT
-- Cadastro de usuários e switches
-- Interface administrativa
-- Logs de atividades
-
-### 🧪 **Testes**
-- Testes automatizados de APIs
-- Validação de conectividade
-- Testes de integração
-- Monitoramento de saúde dos serviços
-
-## 🛠️ Tecnologias
-
-### Frontend
-- **Next.js 15.5.2** - Framework React com Turbopack
-- **React 19.1.0** - Interface de usuário
-- **Chart.js** - Gráficos e visualizações
-- **TailwindCSS** - Estilização
-- **TypeScript** - Tipagem estática
-
-### Backend & APIs
-- **Prisma** - ORM e gerenciamento de banco
-- **PostgreSQL** - Banco de dados principal
-- **Zabbix** - Monitoramento de rede
-- **Ansible** - Automação e configuração
-- **Flask** - API do Ansible
-
-### Infraestrutura
-- **Docker & Docker Compose** - Containerização
-- **OpenSSH Server** - Mock Switch para testes
-- **JWT** - Autenticação
-- **bcryptjs** - Hash de senhas
-
-### Testes
-- **Axios** - Cliente HTTP para testes
-- **SSH2** - Conexões SSH
-- **Bash/curl** - Testes rápidos
-
-## 🔧 Instalação e Configuração
-
-### Pré-requisitos
-
-- Node.js 18+
-- Docker e Docker Compose
-- Git
-
-### 1. Clone o repositório
+## 🚀 1) Clonar o projeto
 
 ```bash
 git clone https://github.com/EricSL07/web-snmp.git
 cd web-snmp
-```
+````
 
-### 2. Instale as dependências
+---
 
-```bash
-npm install
-```
+## ⚙️ 2) Variáveis de ambiente (Next.js)
 
-### 3. Configure as variáveis de ambiente
-
-```bash
-cp .env.example .env
-```
-
-Edite o arquivo `.env` com suas configurações:
+Crie o arquivo `.env` na raiz do app Next.js (ex.: `web-snmp/.env`) com:
 
 ```env
 DATABASE_URL="postgresql://app:apppass@localhost:5432/appdb?schema=public"
@@ -106,118 +32,178 @@ ANSIBLE_API_URL=http://localhost:5000
 ZABBIX_URL=http://localhost:8080/api_jsonrpc.php
 ZABBIX_USER=Admin
 ZABBIX_PASSWORD=zabbix
-JWT_SECRET=sua-chave-secreta-muito-segura
+
 ```
 
-### 4. Inicie a infraestrutura
+---
+
+## 🐳 3) Subir a infraestrutura com Docker
+
+Se o `docker-compose.yml` está em `infra/`:
 
 ```bash
-# Iniciar containers Docker
 cd infra
-docker-compose up -d
-
-# Voltar para raiz do projeto
-cd ..
-
-# Configurar banco de dados
-npx prisma generate
-npx prisma migrate deploy
+docker compose up -d
 ```
 
-### 5. Inicie a aplicação
+Isso deve subir:
+
+* `app-postgres` 
+* `zabbix-postgres`
+* `zabbix-server`
+* `zabbix-web` 
+* `ansible-api` 
+* `mock-switch` 
+
+### Verificar status e logs
 
 ```bash
-# Desenvolvimento
+docker compose ps
+docker logs -f zabbix-server
+```
+
+Teste a API do Zabbix diretamente:
+
+```bash
+curl -X POST http://localhost:8080/api_jsonrpc.php \
+  -H "Content-Type: application/json-rpc" \
+  -d '{"jsonrpc":"2.0","method":"apiinfo.version","params":{},"id":1}'
+```
+
+**Esperado:**
+
+```json
+{"jsonrpc":"2.0","result":"7.4.2","id":1}
+```
+
+---
+
+## 📥 4) Instalar dependências do Next.js
+
+No diretório do app Next.js:
+
+```bash
+cd web-snmp
+npm install
+```
+
+---
+
+## ▶️ 5) Rodar o Next.js
+
+### Desenvolvimento
+
+```bash
 npm run dev
-
-# Produção
-npm run build
-npm start
 ```
 
-## 🌐 Serviços Disponíveis
-
-Após iniciar a infraestrutura, os seguintes serviços estarão disponíveis:
-
-| Serviço | URL | Descrição |
-|---------|-----|-----------|
-| **Web App** | http://localhost:3000 | Interface principal Next.js |
-| **Prisma Studio** | http://localhost:5555 | Gerenciamento do banco |
-| **Zabbix Web** | http://localhost:8080 | Interface de monitoramento |
-| **Ansible API** | http://localhost:5000 | API de automação |
-| **PostgreSQL** | localhost:5432 | Banco de dados |
-| **Mock Switch** | localhost:2222 (SSH) | Switch simulado |
-
-### 🔐 Credenciais Padrão
-
-- **Zabbix**: Admin / zabbix
-- **Mock Switch SSH**: admin / admin123
-- **PostgreSQL**: app / apppass
-
-## 🧪 Testes
-
-O projeto inclui um sistema completo de testes automatizados:
+### Produção
 
 ```bash
-# Teste rápido (curl)
-npm run test:quick
-
-# Teste completo (Node.js)
-npm run test:apis
-
-# Teste de integração específico
-npm run test:integration
+npm run build
+npm run start
 ```
 
-### O que é testado:
-- ✅ Conectividade de APIs
-- ✅ Autenticação Zabbix
-- ✅ Execução de playbooks Ansible
-- ✅ Conexão SSH com switches
-- ✅ Integração end-to-end
+O app estará disponível em `http://localhost:3000`.
 
-## 📁 Estrutura do Projeto
+---
+## 5.2) Problemas com o Prisma
+# Instalar prisma dentro do diretório /app
 
+´´´bash
+npm i -D prisma
+npm i @prisma/client
+npx prisma init
+´´´
+
+# Criar as tabelas
+
+´´´bash
+npx prisma migrate dev --name init
+(seeder rodará se existir prisma/seed.ts
+
+garantir o client
+npx prisma generate
+
+´´´
+
+---
+## ✅ 6) Testes de verificação (cURL)
+
+### 6.1 Health check do Zabbix
+
+```bash
+curl http://localhost:3000/api/zbx/health
 ```
-web-snmp/
-├── src/                    # Código fonte Next.js
-│   ├── app/               # App Router do Next.js
-│   ├── lib/               # Bibliotecas e utilitários
-│   └── middleware.ts      # Middleware de autenticação
-├── prisma/                # Schema e migrações do banco
-├── infra/                 # Infraestrutura Docker
-├── ansible/               # Playbooks e inventários
-├── ansible-api/           # API Flask do Ansible
-├── tests/                 # Testes automatizados
-├── public/                # Arquivos estáticos
-└── docs/                  # Documentação adicional
+
+**Esperado:**
+
+```json
+{ "ok": true, "version": "7.4.2" }
 ```
 
-## 🔄 Fluxo de Trabalho
+---
 
-### 1. Monitoramento
-- Zabbix coleta métricas dos switches
-- Dashboard exibe informações em tempo real
-- Alertas são gerados automaticamente
+### 6.2 Login no Zabbix
 
-### 2. Automação
-- Playbooks Ansible configuram switches
-- API permite execução remota
-- Logs são armazenados no banco
+```bash
+curl http://localhost:3000/api/zbx/login
+```
 
-### 3. Gerenciamento
-- Interface web para cadastro de switches
-- Sistema de usuários com autenticação
-- Prisma Studio para administração
+**Esperado:**
 
-## 📄 Licença
+```json
+{ "ok": true, "token": "xxxxxxxxxxxxxxxx" }
+```
 
-Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
+---
 
-## 🙏 Referências
+### 6.3 Listar hosts
 
-- [Zabbix](https://www.zabbix.com/) - Sistema de monitoramento
-- [Ansible](https://www.ansible.com/) - Automação
-- [Next.js](https://nextjs.org/) - Framework React
-- [Prisma](https://www.prisma.io/) - ORM moderno
-- [Docker](https://www.docker.com/) - Containerização
+```bash
+curl http://localhost:3000/api/zbx/hosts
+```
+
+**Esperado:**
+
+```json
+{
+  "ok": true,
+  "hosts": [
+    {
+      "hostid": "10084",
+      "host": "Zabbix server",
+      "name": "Zabbix server",
+      "status": "0",
+      "interfaces": [{ "ip": "127.0.0.1" }]
+    }
+  ]
+}
+```
+
+---
+
+## 🔧 7) Testar Ansible API + mock-switch
+
+Se o compose inclui `ansible-api` e `mock-switch`:
+
+```bash
+curl -X POST http://localhost:3000/api/ansible \
+  -H "Content-Type: application/json" \
+  -d '{"playbook":"ping.yml","limit":"mock-switch"}'
+```
+
+**Esperado:**
+
+```json
+{ "stdout": "PONG", "stderr": "", "rc": 0 }
+```
+
+---
+
+## 📚 Referências
+
+* [Zabbix JSON-RPC API](https://www.zabbix.com/documentation/current/en/manual/api)
+* [user.login](https://www.zabbix.com/documentation/current/en/manual/api/reference/user/login)
+* [host.get](https://www.zabbix.com/documentation/current/en/manual/api/reference/host/get)
+* [Ansible Documentation](https://docs.ansible.com/)
