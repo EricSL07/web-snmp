@@ -1,0 +1,10 @@
+---
+- name: Show version (sem Python)
+  hosts: mock
+  gather_facts: no
+  tasks:
+    - name: uname -a
+      ansible.builtin.raw: "uname -a"
+      register: out
+    - ansible.builtin.debug:
+        var: out.stdout
