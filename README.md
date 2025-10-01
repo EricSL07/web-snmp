@@ -75,9 +75,10 @@ O Web-SNMP é uma solução completa que combina monitoramento de rede, automaç
 
 ### Pré-requisitos
 
-- Node.js 18+
 - Docker e Docker Compose
 - Git
+
+## 🚀 Início Rápido com Docker
 
 ### 1. Clone o repositório
 
@@ -86,48 +87,71 @@ git clone https://github.com/EricSL07/web-snmp.git
 cd web-snmp
 ```
 
-### 2. Instale as dependências
+### 2. Inicie todos os serviços
 
 ```bash
+# Usando o script de inicialização (recomendado)
+./start.sh
+
+# Ou manualmente
+docker-compose up --build -d
+```
+
+### 3. Acesse a aplicação
+
+A aplicação estará disponível em: **http://localhost:3000**
+
+## 🛠️ Desenvolvimento Local
+
+### Opção 1: Docker Completo (Recomendado)
+
+```bash
+# Usar ambiente de desenvolvimento
+docker-compose -f docker-compose.dev.yml up --build
+
+# Parar serviços
+./start.sh stop
+```
+
+### Opção 2: Desenvolvimento Híbrido
+
+```bash
+# 1. Instalar dependências localmente
 npm install
-```
 
-### 3. Configure as variáveis de ambiente
+# 2. Iniciar apenas infraestrutura
+cd infra && docker-compose up -d && cd ..
 
-```bash
-cp .env.example .env
-```
-
-Edite o arquivo `.env` com suas configurações:
-
-```env
-DATABASE_URL="postgresql://app:apppass@localhost:5432/appdb?schema=public"
-ANSIBLE_API_URL=http://localhost:5000
-ZABBIX_URL=http://localhost:8080/api_jsonrpc.php
-ZABBIX_USER=Admin
-ZABBIX_PASSWORD=zabbix
-JWT_SECRET=sua-chave-secreta-muito-segura
-```
-
-### 4. Inicie a infraestrutura
-
-```bash
-# Iniciar containers Docker
-cd infra
-docker-compose up -d
-
-# Voltar para raiz do projeto
-cd ..
-
-# Configurar banco de dados
+# 3. Configurar banco local
 npx prisma generate
 npx prisma migrate deploy
+
+# 4. Iniciar aplicação em desenvolvimento
+npm run dev
 ```
 
-### 5. Inicie a aplicação
+## 📋 Scripts Úteis
 
 ```bash
-# Desenvolvimento
+# Iniciar tudo
+./start.sh
+
+# Parar todos os serviços
+./start.sh stop
+
+# Ver logs em tempo real
+./start.sh logs
+
+# Executar testes
+./start.sh test
+
+# Reiniciar serviços
+./start.sh restart
+```
+
+## 🔧 Configuração Manual (Alternativa)
+
+Se preferir não usar Docker para desenvolvimento:
 npm run dev
 
 # Produção
