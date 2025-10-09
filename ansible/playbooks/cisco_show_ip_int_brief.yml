@@ -1,0 +1,16 @@
+---
+- name: Cisco IOS - show ip interface brief
+  hosts: all
+  gather_facts: no
+  connection: network_cli
+  vars:
+    ansible_network_os: cisco.ios.ios
+  tasks:
+    - name: Run show ip interface brief
+      cisco.ios.ios_command:
+        commands:
+          - show ip interface brief
+      register: out
+    - name: Print output
+      ansible.builtin.debug:
+        var: out.stdout_lines
