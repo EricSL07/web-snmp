@@ -132,6 +132,37 @@ services:
     ports:
       - "5555:5555"
     command: sh -c "npm install && npx prisma studio --hostname 0.0.0.0"
+  
+  # Simulated switches for testing (SSH + SNMP)
+  sim-switch-1:
+    build:
+      context: ./sim-switch
+    container_name: sim-switch-1
+    environment:
+      SNMP_COMMUNITY: public
+      SYSNAME: sim-switch-1
+    networks:
+      - web-snmp-network
+
+  sim-switch-2:
+    build:
+      context: ./sim-switch
+    container_name: sim-switch-2
+    environment:
+      SNMP_COMMUNITY: public
+      SYSNAME: sim-switch-2
+    networks:
+      - web-snmp-network
+
+  sim-switch-3:
+    build:
+      context: ./sim-switch
+    container_name: sim-switch-3
+    environment:
+      SNMP_COMMUNITY: public
+      SYSNAME: sim-switch-3
+    networks:
+      - web-snmp-network
 volumes:
   pgdata-dev:
   zabbix-db-dev:
