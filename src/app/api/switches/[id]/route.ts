@@ -1,16 +1,16 @@
 // src/app/api/switches/[id]/route.ts
-import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { NextRequest, NextResponse } from 'next/server';
+import prisma from '@/lib/prisma';
+export const runtime = 'nodejs';
 
 export async function GET(
-  request: Request,
-  { params }: { params: { id: string } }
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await context.params;
     const switchData = await prisma.switch.findUnique({
-      where: { id: params.id },
+      where: { id },
     });
 
     if (!switchData) {

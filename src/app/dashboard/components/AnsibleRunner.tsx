@@ -8,7 +8,7 @@ export type AnsibleRunnerHandle = {
   setLimit: (value: string) => void;
 };
 
-function AnsibleRunnerInner({ target }: { target?: string }, ref: React.Ref<AnsibleRunnerHandle>) {
+function AnsibleRunnerInner({ target, credentialId }: { target?: string; credentialId?: string | null }, ref: React.Ref<AnsibleRunnerHandle>) {
   const [playbook, setPlaybook] = useState<string>("cisco_show_version.yml");
   const [extra, setExtra] = useState<string>("{}");
   const [limit, setLimit] = useState<string>(target || "");
@@ -33,6 +33,7 @@ function AnsibleRunnerInner({ target }: { target?: string }, ref: React.Ref<Ansi
         // ignore parse error, send no extra vars
       }
       if (limit) body.limit = limit;
+      if (credentialId) body.credentialId = credentialId;
       const res = await fetch("/api/ansible", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const data = await res.json();
       setResult(data);
@@ -83,6 +84,7 @@ function AnsibleRunnerInner({ target }: { target?: string }, ref: React.Ref<Ansi
         <button onClick={run} disabled={loading} className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-4 py-2 rounded">{loading ? 'Executando…' : 'Executar'}</button>
         <button onClick={() => setResult(null)} className="bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded">Limpar</button>
       </div>
+      {/* credential UI moved to parent page; runner accepts credentialId prop */}
   {result && (
         <div className="mt-4">
           {typeof result.rc === 'number' && (
