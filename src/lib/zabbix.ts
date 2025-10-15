@@ -1,14 +1,20 @@
 // src/lib/zabbix.ts
+// Helper to read env in a type-safe way without relying on global Node types
+const env = {
+  ZABBIX_URL: (globalThis as any).process?.env?.ZABBIX_URL as string,
+  ZABBIX_USER: (globalThis as any).process?.env?.ZABBIX_USER as string,
+  ZABBIX_PASSWORD: (globalThis as any).process?.env?.ZABBIX_PASSWORD as string,
+};
 export async function zabbixLogin(): Promise<string> {
-  const res = await fetch(process.env.ZABBIX_URL!, {
+  const res = await fetch(env.ZABBIX_URL!, {
     method: "POST",
     headers: { "Content-Type": "application/json-rpc" },
     body: JSON.stringify({
       jsonrpc: "2.0",
       method: "user.login",
       params: {
-        username: process.env.ZABBIX_USER!,
-        password: process.env.ZABBIX_PASSWORD!,
+        username: env.ZABBIX_USER!,
+        password: env.ZABBIX_PASSWORD!,
       },
       id: 1,
     }),
@@ -26,7 +32,7 @@ export async function zabbixLogin(): Promise<string> {
 export async function zabbixGetHosts() {
   const token = await zabbixLogin();
 
-  const res = await fetch(process.env.ZABBIX_URL!, {
+  const res = await fetch(env.ZABBIX_URL!, {
     method: "POST",
     headers: {
       "Content-Type": "application/json-rpc",
@@ -55,7 +61,7 @@ export async function zabbixGetHosts() {
 
 // Generic JSON-RPC helper with Bearer token
 async function zbxRpc<T = any>(method: string, params: any, token: string, id = 1): Promise<T> {
-  const res = await fetch(process.env.ZABBIX_URL!, {
+  const res = await fetch(env.ZABBIX_URL!, {
     method: "POST",
     headers: {
       "Content-Type": "application/json-rpc",
@@ -138,6 +144,121 @@ export async function zabbixGetHistory(itemid: string, valueType: number, timeFr
   return history;
 }
 
+// Ensure a host group exists and return its id
+export async function zabbixEnsureHostGroup(name: string): Promise<string> {
+  const token = await zabbixLogin();
+  // Try to find existing group
+  const groups = await zbxRpc<any[]>(
+    "hostgroup.get",
+    { filter: { name: [name] }, output: ["groupid", "name"] },
+    token,
+    5
+  );
+  if (groups?.length) return groups[0].groupid;
+  // Create if missing
+  const created = await zbxRpc<any>(
+    "hostgroup.create",
+    { name },
+    token,
+    6
+  );
+  const gid = created?.groupids?.[0] || created?.groupid || created?.result?.groupids?.[0];
+  if (!gid) throw new Error("Failed to create host group");
+  return gid;
+}
+
+// Get template id by exact name
+export async function zabbixGetTemplateIdByName(name: string): Promise<string> {
+  const token = await zabbixLogin();
+  const templates = await zbxRpc<any[]>(
+    "template.get",
+    { filter: { name: [name] }, output: ["templateid", "name"] },
+    token,
+    7
+  );
+  if (!templates?.length) throw new Error(`Template not found: ${name}`);
+  return templates[0].templateid;
+}
+
+export type CreateHostInput = {
+  host: string; // technical name (unique)
+  name?: string; // visible name
+  ip?: string;
+  dns?: string; // preferred when provided
+  groups?: string[]; // group names
+  templateNames?: string[]; // template names
+};
+
+// Create a host with given groups and templates (idempotent by host name)
+export async function zabbixEnsureHost(input: CreateHostInput): Promise<{ hostid: string }> {
+  const token = await zabbixLogin();
+  // If exists, return
+  const existing = await zbxRpc<any[]>(
+    "host.get",
+    { filter: { host: [input.host] }, output: ["hostid", "host", "name"] },
+    token,
+    8
+  );
+  if (existing?.length) {
+    return { hostid: existing[0].hostid };
+  }
+
+  // Resolve group ids
+  const groupNames = input.groups?.length ? input.groups : ["Simulated Switches"];
+  const groupids: string[] = [];
+  for (const g of groupNames) {
+    groupids.push(await zabbixEnsureHostGroup(g));
+  }
+
+  // Resolve template ids (prefer ICMP Ping template which requires no agent)
+  const templateNames = input.templateNames?.length
+    ? input.templateNames
+    : [
+        "Template ICMP Ping",
+        "Template Module ICMP Ping",
+        "ICMP Ping",
+        "Template Network ICMP Ping",
+      ];
+  const templateids: string[] = [];
+  let foundOne = false;
+  for (const t of templateNames) {
+    try {
+      const id = await zabbixGetTemplateIdByName(t);
+      templateids.push(id);
+      foundOne = true;
+      break; // one is enough for our test hosts
+    } catch (_) {
+      // try next candidate
+    }
+  }
+  if (!foundOne) {
+    throw new Error(`None of the ICMP templates found. Tried: ${templateNames.join(", ")}`);
+  }
+
+  const useDns = !!input.dns;
+  const interfaceObj = {
+    type: 1, // Zabbix agent (just to satisfy host interface requirement)
+    main: 1,
+    useip: useDns ? 0 : 1,
+    ip: input.ip || (useDns ? "" : input.host),
+    dns: input.dns || (useDns ? input.host : ""),
+    port: "10050",
+  };
+
+  const params: any = {
+    host: input.host,
+    name: input.name || input.host,
+    groups: groupids.map((id) => ({ groupid: id })),
+    interfaces: [interfaceObj],
+    templates: templateids.map((id) => ({ templateid: id })),
+  };
+
+  const created = await zbxRpc<any>("host.create", params, token, 9);
+  const hostid = created?.hostids?.[0] || created?.hostid;
+  if (!hostid) throw new Error("Failed to create host");
+  return { hostid };
+}
+
 // Build temperature series: pick first float item whose key or name contains 'temp'
 export async function zabbixGetTemperatureSeries(host: string, minutes = 60) {
   const hostid = await zabbixResolveHostId(host);
@@ -149,6 +270,8 @@ export async function zabbixGetTemperatureSeries(host: string, minutes = 60) {
   buckets.push(await zabbixGetItems(hostid, { searchKey: "system.hw.temperature" })); // generic
   // Fallback broad search
   buckets.push(await zabbixGetItems(hostid, { searchKey: "temp" }));
+  // Additional fallback: fetch full item list and filter by name/units
+  buckets.push(await zabbixGetItems(hostid));
   const items = buckets.flat();
   const tempCandidates = items.filter((it) => {
     const key = (it.key_ || "").toLowerCase();
@@ -170,8 +293,14 @@ export async function zabbixGetTemperatureSeries(host: string, minutes = 60) {
   const now = Math.floor(Date.now() / 1000);
   const from = now - minutes * 60;
   const hist = await zabbixGetHistory(tempItem.itemid, Number(tempItem.value_type) || 0, from, now);
-  const labels = hist.map((p) => new Date(Number(p.clock) * 1000).toISOString());
-  const values = hist.map((p) => Number(p.value));
+  let labels = hist.map((p) => new Date(Number(p.clock) * 1000).toISOString());
+  let values = hist.map((p) => Number(p.value));
+  if (hist.length === 0 && tempItem.lastvalue != null && tempItem.lastvalue !== "") {
+    const lc = Number(tempItem.lastclock || 0);
+    const ts = lc > 0 ? lc : now;
+    labels = [new Date(ts * 1000).toISOString()];
+    values = [Number(tempItem.lastvalue)];
+  }
   return { item: { itemid: tempItem.itemid, name: tempItem.name }, labels, values };
 }
 
@@ -357,6 +486,80 @@ export async function zabbixGetPortsSummary(hostOrId: string, limit = 10) {
     .slice(0, limit);
 
   return list;
+}
+
+// Ensure SNMP interface exists for host
+async function zabbixEnsureSnmpInterface(hostid: string, addr: { ip?: string; dns?: string; port?: string }) {
+  const token = await zabbixLogin();
+  const ifaces = await zbxRpc<any[]>("hostinterface.get", { hostids: hostid, output: "extend" }, token, 12);
+  const hasSnmp = ifaces.some((i) => Number(i.type) === 2);
+  if (hasSnmp) return; // assume configured
+  const useDns = !!addr.dns;
+  await zbxRpc(
+    "hostinterface.create",
+    {
+      hostid,
+      type: 2, // SNMP
+      main: 1, // default SNMP interface for this type
+      useip: useDns ? 0 : 1,
+      ip: addr.ip || (useDns ? "" : "127.0.0.1"),
+      dns: addr.dns || (useDns ? "localhost" : ""),
+      port: addr.port || "161",
+      details: { version: 2, bulk: 1, community: "{$SNMP_COMMUNITY}" },
+    },
+    token,
+    13
+  );
+}
+
+// Ensure a host macro exists with the desired value
+async function zabbixEnsureMacro(hostid: string, macro: string, value: string) {
+  const token = await zabbixLogin();
+  const existing = await zbxRpc<any[]>(
+    "usermacro.get",
+    { hostids: hostid, filter: { macro: [macro] } },
+    token,
+    14
+  );
+  if (existing?.length) {
+    const m = existing[0];
+    if (m.value !== value) {
+      await zbxRpc("usermacro.update", { hostmacroid: m.hostmacroid, value }, token, 15);
+    }
+    return;
+  }
+  await zbxRpc("usermacro.create", { hostid, macro, value }, token, 16);
+}
+
+// Add a template by name without removing existing ones
+async function zabbixAddTemplate(hostid: string, templateName: string) {
+  const token = await zabbixLogin();
+  const tid = await zabbixGetTemplateIdByName(templateName);
+  await zbxRpc("host.massadd", { hosts: [{ hostid }], templates: [{ templateid: tid }] }, token, 17);
+}
+
+export async function zabbixEnableSnmpForHost(hostOrId: string, opts?: { ip?: string; dns?: string; community?: string; templateCandidates?: string[] }) {
+  const hostid = await zabbixResolveHostId(hostOrId);
+  await zabbixEnsureSnmpInterface(hostid, { ip: opts?.ip, dns: opts?.dns, port: "161" });
+  await zabbixEnsureMacro(hostid, "{$SNMP_COMMUNITY}", opts?.community || "public");
+  // Try common SNMP templates
+  const candidates = opts?.templateCandidates?.length
+    ? opts.templateCandidates
+    : [
+        "Template OS Linux by SNMP",
+        "Template Net Network Generic Device by SNMP",
+        "Template Module Generic SNMPv2",
+        "Template Module Interfaces SNMP",
+      ];
+  for (const name of candidates) {
+    try {
+      await zabbixAddTemplate(hostid, name);
+      // add first successful and continue to also add Interfaces, etc.
+    } catch (_) {
+      // ignore if not found
+    }
+  }
+  return { hostid };
 }
 
 

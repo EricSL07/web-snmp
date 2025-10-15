@@ -5,24 +5,20 @@ ENV SYSNAME=sim-switch
 ENV USER=admin
 ENV PASS=admin123
 
-RUN apk add --no-cache openssh net-snmp net-snmp-tools bash tini
+RUN apk add --no-cache openssh net-snmp net-snmp-tools bash tini python3
 
 # Create user and sshd config
 RUN adduser -D -s /bin/sh $USER && echo "$USER:$PASS" | chpasswd
 RUN mkdir -p /run/sshd
 
-# Create a minimal snmpd.conf to avoid duplicate entries
-RUN cat > /etc/snmp/snmpd.conf <<'EOF'
-agentAddress udp:0.0.0.0:1161
-rocommunity public  default -V systemonly
-syslocation Docker simulated switch
-syscontact sim@example.com
-EOF
+# snmpd.conf will be generated at runtime using env vars
 
-EXPOSE 22/tcp 1161/udp
+EXPOSE 22/tcp 161/udp
 
 COPY start-sim.sh /usr/local/bin/start-sim.sh
 RUN chmod +x /usr/local/bin/start-sim.sh
+COPY simtemp.py /usr/local/bin/simtemp.py
+RUN chmod +x /usr/local/bin/simtemp.py
 
 ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["/usr/local/bin/start-sim.sh"]
