@@ -1,0 +1,49 @@
+# Dependencies
+node_modules
+npm-debug.log*
+
+# Testing
+coverage
+
+# Next.js
+.next/
+out/
+
+# Production
+build
+
+# Misc
+.DS_Store
+*.tgz
+*.tar.gz
+
+# Debug
+*.log
+
+# Local env files
+.env*.local
+
+# Vercel
+.vercel
+
+# IDEs
+.vscode
+.idea
+
+# Git
+.git
+.gitignore
+
+# Docker
+Dockerfile*
+docker-compose*
+
+# Documentation
+README.md
+docs/
+
+# Tests (opcionais)
+tests/
+
+# Infra antiga
+infra/

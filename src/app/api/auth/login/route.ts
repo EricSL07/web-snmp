@@ -1,12 +1,12 @@
 // src/app/api/auth/login/route.ts
 
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import prisma from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { cookies } from 'next/headers';
 
-const prisma = new PrismaClient();
+export const runtime = 'nodejs';
 
 export async function POST(request: Request) {
   try {
@@ -35,8 +35,9 @@ export async function POST(request: Request) {
       { expiresIn: '1d' } // Token expira em 1 dia
     );
 
-    // 4. Armazenar o token em um cookie seguro
-    cookies().set('auth_token', token, {
+    // 4. Armazenar o token em um cookie seguro (API assíncrona no Next 15)
+    const cookieStore = await cookies();
+    cookieStore.set('auth_token', token, {
       httpOnly: true, // O cookie não pode ser acessado via JavaScript no frontend
       secure: process.env.NODE_ENV === 'production', // Use https em produção
       sameSite: 'strict',

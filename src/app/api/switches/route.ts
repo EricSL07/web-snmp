@@ -1,8 +1,7 @@
 // src/app/api/switches/route.ts
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import prisma from '@/lib/prisma';
+export const runtime = 'nodejs';
 
 // FUNÇÃO POST: Para registrar um novo switch
 export async function POST(request: Request) {
