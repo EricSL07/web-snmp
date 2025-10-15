@@ -74,7 +74,8 @@ services:
     container_name: web-snmp-zabbix-postgres-dev
     restart: unless-stopped
     environment:
-      # Lines 80-82 omitted
+      POSTGRES_USER: zabbix
+      POSTGRES_PASSWORD: zabbix
       POSTGRES_DB: zabbix
     volumes:
       - zabbix-db-dev:/var/lib/postgresql/data
@@ -87,7 +88,8 @@ services:
     container_name: web-snmp-zabbix-server-dev
     restart: unless-stopped
     environment:
-      # Lines 94-96 omitted
+      DB_SERVER_HOST: zabbix-postgres
+      POSTGRES_USER: zabbix
       POSTGRES_PASSWORD: zabbix
     depends_on:
       - zabbix-postgres
@@ -102,7 +104,10 @@ services:
     container_name: web-snmp-zabbix-web-dev
     restart: unless-stopped
     environment:
-      # Lines 110-114 omitted
+      DB_SERVER_HOST: zabbix-postgres
+      POSTGRES_USER: zabbix
+      POSTGRES_PASSWORD: zabbix
+      ZBX_SERVER_HOST: zabbix-server
       PHP_TZ: America/Sao_Paulo
     depends_on:
       # Lines 116-117 omitted

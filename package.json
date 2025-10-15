@@ -2,6 +2,7 @@
   "name": "web-snmp",
   "version": "0.1.0",
   "private": true,
+  
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
@@ -9,7 +10,8 @@
     "lint": "eslint",
     "test:apis": "node tests/test-apis.js",
     "test:quick": "bash tests/test-curl.sh",
-    "test:integration": "bash tests/test-ansible-mock.sh"
+    "test:integration": "bash tests/test-ansible-mock.sh",
+    "test:e2e": "playwright test tests/e2e --config=tests/e2e/playwright.config.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.17.1",
@@ -34,6 +36,7 @@
     "eslint": "^9",
     "eslint-config-next": "15.5.2",
     "prisma": "^6.16.2",
+    "@playwright/test": "^1.36.0",
     "ssh2": "^1.15.0",
     "tailwindcss": "^4",
     "typescript": "^5"
