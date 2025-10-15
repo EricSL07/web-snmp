@@ -14,6 +14,7 @@ def run_playbook():
     data = request.get_json(force=True)
     playbook = data.get("playbook")
     extra_vars = data.get("extra_vars", {})
+    limit = data.get("limit")
     if not playbook:
         return jsonify({"error": "playbook é obrigatório"}), 400
 
@@ -22,8 +23,12 @@ def run_playbook():
         return jsonify({"error": f"playbook não encontrado: {pb_path}"}), 404
 
     cmd = ["ansible-playbook", pb_path, "-i", INVENTORY, "--extra-vars", json.dumps(extra_vars)]
+    if limit:
+        cmd += ["-l", str(limit)]
     try:
-        p = subprocess.run(cmd, capture_output=True, text=True, timeout=55)
+        env = os.environ.copy()
+        env["ANSIBLE_HOST_KEY_CHECKING"] = "False"
+        p = subprocess.run(cmd, capture_output=True, text=True, timeout=55, env=env)
         return jsonify({
             "cmd": " ".join(cmd),
             "rc": p.returncode,
