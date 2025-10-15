@@ -48,14 +48,14 @@ export default function LoginPage() {
             placeholder="LOGIN"
             value={login}
             onChange={(e) => setLogin(e.target.value)}
-            className="p-3 rounded-full bg-gray-300 text-center placeholder-gray-600 focus:outline-none"
+            className="text-black p-3 rounded-full bg-gray-300 text-center placeholder-gray-600 focus:outline-none"
           />
           <input
             type="password"
             placeholder="SENHA"
             value={senha}
             onChange={(e) => setSenha(e.target.value)}
-            className="p-3 rounded-full bg-gray-300 text-center placeholder-gray-600 focus:outline-none"
+            className="text-black p-3 rounded-full bg-gray-300 text-center placeholder-gray-600 focus:outline-none"
           />
           <button type="submit" className="p-3 mt-4 bg-gray-400 text-gray-800 rounded-lg hover:bg-gray-500 transition-colors">
             ENTRAR
