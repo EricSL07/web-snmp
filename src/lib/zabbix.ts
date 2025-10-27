@@ -42,9 +42,10 @@ export async function zabbixGetHosts() {
       jsonrpc: "2.0",
       method: "host.get",
       params: {
-        output: ["hostid", "host", "name", "status"],
-        selectInterfaces: ["ip"],
-        limit: 5,
+          output: ["hostid", "host", "name", "status"],
+          selectInterfaces: ["ip"],
+          // fetch a larger set of hosts by default; omit or increase as needed
+          limit: 1000,
       },
       id: 2,
     }),

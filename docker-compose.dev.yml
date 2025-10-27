@@ -50,23 +50,9 @@ services:
       - ./ansible:/ansible
     ports:
       - "5000:5000"
-    depends_on:
-      - mock-switch
     networks:
       - web-snmp-network
 
-  # Switch simulado para testes
-  mock-switch:
-    image: lscr.io/linuxserver/openssh-server:latest
-    container_name: web-snmp-mock-switch-dev
-    restart: unless-stopped
-    environment:
-      # Lines 65-68 omitted
-      SUDO_ACCESS: "false"
-    ports:
-      - "2222:2222"
-    networks:
-      - web-snmp-network
 
   # Banco PostgreSQL para Zabbix
   zabbix-postgres:
@@ -133,36 +119,6 @@ services:
       - "5555:5555"
     command: sh -c "npm install && npx prisma studio --hostname 0.0.0.0"
   
-  # Simulated switches for testing (SSH + SNMP)
-  sim-switch-1:
-    build:
-      context: ./sim-switch
-    container_name: sim-switch-1
-    environment:
-      SNMP_COMMUNITY: public
-      SYSNAME: sim-switch-1
-    networks:
-      - web-snmp-network
-
-  sim-switch-2:
-    build:
-      context: ./sim-switch
-    container_name: sim-switch-2
-    environment:
-      SNMP_COMMUNITY: public
-      SYSNAME: sim-switch-2
-    networks:
-      - web-snmp-network
-
-  sim-switch-3:
-    build:
-      context: ./sim-switch
-    container_name: sim-switch-3
-    environment:
-      SNMP_COMMUNITY: public
-      SYSNAME: sim-switch-3
-    networks:
-      - web-snmp-network
 volumes:
   pgdata-dev:
   zabbix-db-dev:

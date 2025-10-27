@@ -85,7 +85,7 @@ test('full user journey', async ({ page, request }) => {
   }, { timeout: 30000 });
 
   // 10) Verify Zabbix API endpoints used by UI return data (via request) – ensure /api/zbx/host responds
-  const zbxHostRes = await request.get(`${BASE}/api/zbx/host?host=SWITCH-CISCO`);
+  const zbxHostRes = await request.get(`${BASE}/api/zbx/host?host=all`);
   expect(zbxHostRes.ok()).toBeTruthy();
   const zbxHostBody = await zbxHostRes.json();
   // We only assert the shape
