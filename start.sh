@@ -90,7 +90,11 @@ main() {
             echo "🗄️  Gerando Prisma client e aplicando migrações em dev (o container já executa isso na inicialização)..."
             echo "⏳ Aguardando 10s para que o processo interno do container conclua npm install / prisma generate..."
             sleep 10
-            echo "📄 Se houver problemas, veja os logs do container web-app-dev:"
+            echo "🗄️  Garantindo dependências, aplicando migrations (prisma migrate deploy) e gerando Prisma Client no container de dev..."
+            # Instalar dependências se necessário e aplicar migrations + gerar client no container de desenvolvimento
+            # Garantir que o comando rode no diretório /app dentro do container
+            $DC -f docker-compose.dev.yml exec -w /app web-app-dev sh -lc "npm install --no-audit --no-fund --silent || true; npx prisma migrate deploy || echo '⚠️  Falha ao aplicar migrations (ou já aplicadas)'; npx prisma generate || echo '⚠️  Falha ao gerar Prisma Client'"
+            echo "�📄 Se houver problemas, veja os logs do container web-app-dev:"
             echo "   $DC -f docker-compose.dev.yml logs -f web-app-dev"
             show_status
             ;;

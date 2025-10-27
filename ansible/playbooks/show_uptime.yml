@@ -1,0 +1,11 @@
+---
+- name: Show uptime on simulated switches
+  hosts: sim_switches
+  gather_facts: false
+  tasks:
+    - name: Run uptime via raw
+      ansible.builtin.raw: uptime
+      register: uptime_out
+    - name: Print uptime
+      ansible.builtin.debug:
+        var: uptime_out.stdout

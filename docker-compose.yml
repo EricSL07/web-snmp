@@ -47,23 +47,6 @@ services:
       - ./ansible:/ansible
     ports:
       - "5000:5000"
-    depends_on:
-      - mock-switch
-    networks:
-      - web-snmp-network
-
-  # Switch simulado para testes
-  mock-switch:
-    image: lscr.io/linuxserver/openssh-server:latest
-    container_name: web-snmp-mock-switch
-    restart: unless-stopped
-    environment:
-      PASSWORD_ACCESS: "true"
-      USER_NAME: "admin"
-      USER_PASSWORD: "admin123"
-      SUDO_ACCESS: "false"
-    ports:
-      - "2222:2222"
     networks:
       - web-snmp-network
 
