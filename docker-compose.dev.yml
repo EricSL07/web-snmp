@@ -13,7 +13,7 @@ services:
       JWT_SECRET: "sua-chave-secreta-muito-segura"
     volumes:
       - .:/app
-      - /app/node_modules
+      - node_modules_dev:/app/node_modules
     ports:
       - "3000:3000"
     command: sh -c "npm install && npx prisma generate && npm run dev"
@@ -112,7 +112,7 @@ services:
       DATABASE_URL: "postgresql://app:apppass@postgres:5432/appdb?schema=public"
     volumes:
       - .:/app
-      - /app/node_modules
+      - node_modules_dev:/app/node_modules
     networks:
       - web-snmp-network
     ports:
@@ -122,6 +122,8 @@ services:
 volumes:
   pgdata-dev:
   zabbix-db-dev:
+  node_modules_dev:
+
 
 networks:
   web-snmp-network:
