@@ -326,18 +326,142 @@ export async function zabbixGetTrafficSeries(host: string, minutes = 60) {
   // Traffic items are usually numeric unsigned (3)
   const inHist = await zabbixGetHistory(pick.itemid, Number(pick.value_type) || 3, from, now);
   const outHist = await zabbixGetHistory(out.itemid, Number(out.value_type) || 3, from, now);
-  // Normalize labels by using 'in' timestamps
-  const labels = inHist.map((p) => new Date(Number(p.clock) * 1000).toISOString());
-  const inValues = inHist.map((p) => Number(p.value));
-  // Map out values by timestamp (clock)
-  const outMap = new Map(outHist.map((p) => [String(p.clock), Number(p.value)]));
-  const outValues = inHist.map((p) => outMap.get(String(p.clock)) ?? null);
+  // Compute rates (bits per second) from counter-style history when possible.
+  // If history contains counter values (like ifHCInOctets) we compute delta/dt and convert to bits/s.
+  const toNum = (v: any) => (v == null || v === "" ? NaN : Number(v));
+
+  function computeRatesFromCounters(hist: { clock: string | number; value: string }[]) {
+    if (!hist || hist.length <= 1) return { labels: hist.map((p) => new Date(Number(p.clock) * 1000).toISOString()), rates: hist.map((p) => toNum(p.value)) };
+    const labels: string[] = [];
+    const rates: number[] = [];
+    for (let i = 1; i < hist.length; i++) {
+      const prev = toNum(hist[i - 1].value);
+      const cur = toNum(hist[i].value);
+      const tprev = Number(hist[i - 1].clock);
+      const tcur = Number(hist[i].clock);
+      const dt = tcur - tprev || 1;
+      let diff = cur - prev;
+      // handle possible counter wrap (common for 32-bit counters)
+      if (diff < 0) {
+        // try 32-bit wrap then 64-bit as fallback
+        const wrap32 = 2 ** 32;
+        const wrap64 = 2 ** 64;
+        if (prev >= 0 && prev < wrap32) diff = cur + wrap32 - prev;
+        else diff = cur + wrap64 - prev;
+      }
+      const bytesPerSec = diff / dt;
+      const bitsPerSec = bytesPerSec * 8;
+      labels.push(new Date(tcur * 1000).toISOString());
+      rates.push(bitsPerSec);
+    }
+    return { labels, rates };
+  }
+
+  const inComputed = computeRatesFromCounters(inHist);
+  const outComputed = computeRatesFromCounters(outHist);
+
+  // Heuristic: if computed rates are implausibly larger than raw values, assume history already contains rates
+  const rawInNums = inHist.map((p) => toNum(p.value)).filter((n) => Number.isFinite(n));
+  const meanRaw = rawInNums.length ? rawInNums.reduce((a, b) => a + b, 0) / rawInNums.length : 0;
+  const meanComputed = inComputed.rates.length ? inComputed.rates.reduce((a, b) => a + Math.abs(b), 0) / inComputed.rates.length : 0;
+
+  let labels: string[] = [];
+  let inValues: number[] = [];
+  let outValues: (number | null)[] = [];
+
+  if (meanComputed > 0 && meanComputed / (meanRaw + 1) > 1e4) {
+    // Fallback: treat history values as already rates (assume bytes/sec) and convert to bits/sec
+    labels = inHist.map((p) => new Date(Number(p.clock) * 1000).toISOString());
+    inValues = inHist.map((p) => {
+      const v = toNum(p.value);
+      return Number.isFinite(v) ? v * 8 : NaN;
+    });
+    const outMapRaw = new Map(outHist.map((p) => [new Date(Number(p.clock) * 1000).toISOString(), toNum(p.value)]));
+    outValues = labels.map((l) => {
+      const v = outMapRaw.get(l);
+      return v == null || !Number.isFinite(v) ? null : v * 8;
+    });
+  } else {
+    // Normal case: use computed rates (bits/sec) and align out by timestamp
+    const outMap = new Map<string, number>();
+    for (let i = 0; i < outComputed.labels.length; i++) outMap.set(outComputed.labels[i], outComputed.rates[i]);
+    labels = inComputed.labels;
+    inValues = inComputed.rates;
+    outValues = labels.map((l) => outMap.get(l) ?? null);
+  }
   return {
     iface: { inItem: { itemid: pick.itemid, name: pick.name, key: pick.key_ }, outItem: { itemid: out.itemid, name: out.name, key: out.key_ } },
     labels,
     inValues,
     outValues,
   };
+}
+
+// Get memory usage series for a host. Tries to find a percent or used/free/total items.
+export async function zabbixGetMemorySeries(host: string, minutes = 60) {
+  const hostid = await zabbixResolveHostId(host);
+  // Try targeted searches for common memory keys
+  const buckets: ZabbixItem[][] = [];
+  buckets.push(await zabbixGetItems(hostid, { searchKey: "vm.memory.size" }));
+  buckets.push(await zabbixGetItems(hostid, { searchKey: "memory" }));
+  buckets.push(await zabbixGetItems(hostid, { searchKey: "mem" }));
+  buckets.push(await zabbixGetItems(hostid, { searchKey: "ram" }));
+  buckets.push(await zabbixGetItems(hostid));
+  const items = buckets.flat();
+
+  const numericItems = items.filter((it) => Number(it.value_type) !== 4);
+  if (!numericItems.length) throw new Error("No numeric memory items found");
+
+  // Prefer items that look like percent
+  const percentItem = numericItems.find((it) => {
+    const u = (it.units || "").toLowerCase();
+    const k = (it.key_ || "").toLowerCase();
+    const n = (it.name || "").toLowerCase();
+    return u.includes("%") || /mem.*%|memory.*%|util|usage|used.*%/.test(k + " " + n);
+  });
+  const now = Math.floor(Date.now() / 1000);
+  const from = now - minutes * 60;
+  if (percentItem) {
+    const hist = await zabbixGetHistory(percentItem.itemid, Number(percentItem.value_type) || 0, from, now);
+    const labels = hist.map((p) => new Date(Number(p.clock) * 1000).toISOString());
+    const values = hist.map((p) => Number(p.value));
+    return { item: { itemid: percentItem.itemid, name: percentItem.name }, labels, values };
+  }
+
+  // Try to find total and free items to compute used = total - free
+  // Prefer items whose key/name mention memory explicitly
+  const memCandidates = numericItems.filter((it) => /(mem|memory|ram|ciscoMemory|vm.memory|physical)/i.test((it.key_ || "") + " " + (it.name || "")));
+  if (memCandidates.length) {
+    // prefer used/usage/available percent-like names
+    const prefer = memCandidates.find((it) => /(used|usage|util|available|free|total|buffers|cache|active)/i.test((it.key_ || "") + " " + (it.name || "")));
+    if (prefer) {
+      const hist = await zabbixGetHistory(prefer.itemid, Number(prefer.value_type) || 0, from, now);
+      const labels = hist.map((p) => new Date(Number(p.clock) * 1000).toISOString());
+      const values = hist.map((p) => Number(p.value));
+      return { item: { itemid: prefer.itemid, name: prefer.name }, labels, values };
+    }
+  }
+
+  const totalItem = numericItems.find((it) => /(total|size|memtotal|physical)/i.test(it.key_ + " " + it.name));
+  const freeItem = numericItems.find((it) => /(free|available|memfree|memavailable)/i.test(it.key_ + " " + it.name));
+  if (totalItem && freeItem) {
+    const totalHist = await zabbixGetHistory(totalItem.itemid, Number(totalItem.value_type) || 0, from, now);
+    const freeHist = await zabbixGetHistory(freeItem.itemid, Number(freeItem.value_type) || 0, from, now);
+    const freeMap = new Map(freeHist.map((p) => [String(p.clock), Number(p.value)]));
+    const labels = totalHist.map((p) => new Date(Number(p.clock) * 1000).toISOString());
+    const values = totalHist.map((p) => {
+      const total = Number(p.value);
+      const freeRaw = freeMap.get(String(p.clock));
+      const free = typeof freeRaw === 'number' ? freeRaw : Number(freeRaw);
+      if (!Number.isFinite(total)) return NaN;
+      if (!Number.isFinite(free)) return NaN;
+      return total - free; // same unit as items
+    });
+    return { item: { itemid: totalItem.itemid, name: totalItem.name }, labels, values };
+  }
+
+  // If we couldn't find meaningful memory items, fail with a clear error
+  throw new Error("No memory items found for host");
 }
 
 // Get basic host details (name, host, status, interfaces IP) by host or id

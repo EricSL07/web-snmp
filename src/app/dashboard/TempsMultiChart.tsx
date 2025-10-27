@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import Card from "./components/Card";
 import { Line } from "react-chartjs-2";
 import {
   Chart as ChartJS,
@@ -34,53 +35,67 @@ const COLORS = [
 
 export default function TempsMultiChart({ minutes = 60, hostFilter }: { minutes?: number; hostFilter?: (h: ZbxHost) => boolean }) {
   const [hosts, setHosts] = useState<ZbxHost[]>([]);
+  const [hostsLoading, setHostsLoading] = useState<boolean>(true);
   const [series, setSeries] = useState<Record<string, Series>>({});
   const [err, setErr] = useState<string| null>(null);
 
   // Load Zabbix hosts
   useEffect(() => {
+    let alive = true;
+    setHostsLoading(true);
     fetch('/api/zbx/hosts')
       .then(r => r.json())
       .then(j => {
+        if (!alive) return;
         if (j?.ok && Array.isArray(j.hosts)) {
           const list = (j.hosts as any[]).map((h) => ({ hostid: h.hostid, host: h.host, name: h.name })) as ZbxHost[];
           const filtered = typeof hostFilter === 'function' ? list.filter(hostFilter) : list;
           setHosts(filtered);
+        } else {
+          setErr(j?.error || 'Nenhum host Zabbix encontrado');
         }
       })
-      .catch(e => setErr(String(e)));
+      .catch(e => { if (alive) setErr(String(e)); })
+      .finally(() => { if (alive) setHostsLoading(false); });
+    return () => { alive = false; };
   }, [hostFilter]);
 
-  // Fetch temperature series per host
-  useEffect(() => {
-    let alive = true;
-    const fetchAll = async () => {
-      try {
-        const results = await Promise.all(hosts.map(async (h: ZbxHost) => {
-          const r = await fetch(`/api/zbx/metrics/temp?host=${encodeURIComponent(h.host)}&minutes=${minutes}`);
-          const j = await r.json();
-          if (!j?.ok || !j?.temp || !Array.isArray(j.temp.labels) || !Array.isArray(j.temp.values)) return { h, s: null };
-          const labels: string[] = j.temp.labels;
-          const vals: number[] = j.temp.values.map((x: any) => Number(x));
-          const map = new Map<string, number>();
-          for (let i = 0; i < Math.min(labels.length, vals.length); i++) {
-            if (Number.isFinite(vals[i])) map.set(labels[i], vals[i]);
-          }
-          return { h, s: { labels, valueByLabel: map } as Series };
-        }));
-        if (!alive) return;
-        const ok = (results as Array<{ h: ZbxHost; s: Series | null }>).filter((x) => x.s != null) as { h: ZbxHost; s: Series }[];
-        const byHost: Record<string, Series> = {};
-        ok.forEach(({ h, s }) => { byHost[h.host] = s; });
-        setSeries(byHost);
-      } catch (e: any) {
-        if (alive) setErr(String(e));
-      }
-    };
-    if (hosts.length) fetchAll();
-    const id = setInterval(fetchAll, 180_000);
-    return () => { alive = false; clearInterval(id); };
-  }, [hosts, minutes]);
+    // Fetch traffic series per host (aggregate in+out to single series per host, values in Mb/s)
+    useEffect(() => {
+      let alive = true;
+      const fetchAll = async () => {
+        try {
+          const results = await Promise.all(hosts.map(async (h: ZbxHost) => {
+            const r = await fetch(`/api/zbx/metrics/traffic?host=${encodeURIComponent(h.host)}&minutes=${minutes}`);
+            const j = await r.json();
+            if (!j?.ok || !j?.traf || !Array.isArray(j.traf.labels)) return { h, s: null };
+            const labels: string[] = j.traf.labels;
+            const inVals: number[] = Array.isArray(j.traf.inValues) ? j.traf.inValues.map((x: any) => (x == null ? null : Number(x))) : [];
+            const outVals: (number | null)[] = Array.isArray(j.traf.outValues) ? j.traf.outValues.map((x: any) => (x == null ? null : Number(x))) : [];
+            const map = new Map<string, number>();
+            for (let i = 0; i < labels.length; i++) {
+              const inV = Number.isFinite(inVals[i]) ? inVals[i] as number : null;
+              const outV = outVals[i] != null && Number.isFinite(outVals[i] as number) ? outVals[i] as number : null;
+              const sum = (inV ?? 0) + (outV ?? 0);
+              // convert to Mb/s (assuming values are bps)
+              const mb = isFinite(sum) ? sum / 1_000_000 : null;
+              if (mb != null) map.set(labels[i], mb);
+            }
+            return { h, s: { labels, valueByLabel: map } as Series };
+          }));
+          if (!alive) return;
+          const ok = (results as Array<{ h: ZbxHost; s: Series | null }>).filter((x) => x.s != null) as { h: ZbxHost; s: Series }[];
+          const byHost: Record<string, Series> = {};
+          ok.forEach(({ h, s }) => { byHost[h.host] = s; });
+          setSeries(byHost);
+        } catch (e: any) {
+          if (alive) setErr(String(e));
+        }
+      };
+      if (hosts.length) fetchAll();
+      const id = setInterval(fetchAll, 180_000);
+      return () => { alive = false; clearInterval(id); };
+    }, [hosts, minutes]);
 
   const chart = useMemo(() => {
     const allLabels = new Set<string>();
@@ -105,10 +120,11 @@ export default function TempsMultiChart({ minutes = 60, hostFilter }: { minutes?
 
   const options = useMemo(() => ({
     responsive: true,
+    maintainAspectRatio: false,
     plugins: {
       legend: { display: true },
       tooltip: {
-        callbacks: { label: (ctx: any) => `${ctx.dataset.label}: ${typeof ctx.parsed.y === 'number' ? ctx.parsed.y.toFixed(2) : ctx.parsed.y} °C` }
+        callbacks: { label: (ctx: any) => `${ctx.dataset.label}: ${typeof ctx.parsed.y === 'number' ? ctx.parsed.y.toFixed(2) : ctx.parsed.y} Mb/s` }
       }
     },
     scales: {
@@ -118,16 +134,37 @@ export default function TempsMultiChart({ minutes = 60, hostFilter }: { minutes?
   }), []);
 
   if (err) return <div className="text-red-500">Erro: {err}</div>;
-  if (!hosts.length) return <div className="text-black">Nenhum host Zabbix disponível.</div>;
+  if (hostsLoading) {
+    return (
+      <Card title={<span>TRÁFEGO (TODOS HOSTS)</span>}>
+        <div className="flex flex-col items-center justify-center p-8 text-black">
+          <svg className="animate-spin h-8 w-8 mb-3 text-gray-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+          </svg>
+          <div>Carregando hosts Zabbix...</div>
+        </div>
+      </Card>
+    );
+  }
+
+  if (!hosts.length) {
+    return (
+      <Card title={<span>TRÁFEGO (TODOS HOSTS)</span>}>
+        <div className="p-4 text-black">Nenhum host Zabbix disponível.</div>
+      </Card>
+    );
+  }
 
   return (
-    <div className="bg-white p-4 rounded-lg">
-      <h2 className="text-xl text-black font-bold text-center mb-4">TEMPERATURA (TODOS HOSTS)</h2>
+    <Card title={<span>TRÁFEGO (TODOS HOSTS)</span>}>
       {chart.datasets.length ? (
-        <Line data={chart as any} options={options as any} />
+        <div className="h-64">
+          <Line data={chart as any} options={options as any} />
+        </div>
       ) : (
-        <p className="text-black">Nenhum dado de temperatura encontrado.</p>
+        <p className="text-black">Nenhum dado de tráfego encontrado.</p>
       )}
-    </div>
+    </Card>
   );
 }
