@@ -1,12 +1,17 @@
 import { NextResponse } from "next/server";
-import { zabbixGetTemperatureSeries } from "@/lib/zabbix";
+import { zabbixGetTemperatureSeries, zabbixGetHosts } from "@/lib/zabbix";
 
-// GET /api/zbx/metrics/temp?host=SWITCH-CISCO&minutes=60
+// GET /api/zbx/metrics/temp?host=<host>&minutes=60
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
-  const host = searchParams.get("host") || "SWITCH-CISCO";
+  let host = searchParams.get("host") || "";
   const minutes = Number(searchParams.get("minutes") || 60);
   try {
+    if (!host) {
+      const hosts = await zabbixGetHosts();
+      if (Array.isArray(hosts) && hosts.length) host = hosts[0].host;
+    }
+    if (!host) return NextResponse.json({ ok: false, error: "No host specified" }, { status: 400 });
     const temp = await zabbixGetTemperatureSeries(host, minutes);
     return NextResponse.json({ ok: true, host, minutes, temp });
   } catch (err: any) {

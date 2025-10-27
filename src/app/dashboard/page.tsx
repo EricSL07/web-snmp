@@ -60,9 +60,9 @@ export default function DashboardPage() {
     <div className="flex min-h-screen bg-gray-700 text-white">
       <main className="flex-1 p-8">
         <div className="mb-8">
-          <TempsMultiChart minutes={60} hostFilter={(h) => h.host.startsWith('sim-switch')} />
-        </div>
-        <ZabbixCharts />
+          {/* Mostrar tráfego para todos os hosts Zabbix (sem filtro restritivo) */}
+          <TempsMultiChart minutes={60} />
+  </div>
         <div className="flex gap-4 mt-8">
           <button className="bg-gray-300 text-black px-6 py-2 rounded-lg hover:bg-gray-400">
             ← VOLTAR
