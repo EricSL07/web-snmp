@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation'; // <<< 1. IMPORTE O useRouter
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
+import NewSwitchModal from './components/NewSwitchModal';
 const ZabbixCharts = dynamic(() => import('./ZabbixCharts'), { ssr: false });
 const TempsMultiChart = dynamic(() => import('./TempsMultiChart'), { ssr: false });
 
@@ -24,6 +25,7 @@ type ZbxHost = {
 export default function DashboardPage() {
   const [switches, setSwitches] = useState<SwitchInfo[]>([]);
   const [zbxHosts, setZbxHosts] = useState<ZbxHost[]>([]);
+  const [showNewSwitchModal, setShowNewSwitchModal] = useState(false);
   const router = useRouter(); // <<< INICIE O HOOK
 
   useEffect(() => {
@@ -67,9 +69,19 @@ export default function DashboardPage() {
           <button className="bg-gray-300 text-black px-6 py-2 rounded-lg hover:bg-gray-400">
             ← VOLTAR
           </button>
-          <Link href="/dashboard/switch/registrar" className="bg-gray-300 text-black px-6 py-2 rounded-lg hover:bg-gray-400">
+          <button onClick={() => setShowNewSwitchModal(true)} className="bg-gray-300 text-black px-6 py-2 rounded-lg hover:bg-gray-400">
             NOVO SWITCH
-          </Link>
+          </button>
+          {showNewSwitchModal && (
+            <NewSwitchModal
+              onClose={() => setShowNewSwitchModal(false)}
+              onCreated={(hostid) => {
+                setShowNewSwitchModal(false);
+                // Refresh hosts list after creation
+                fetch('/api/zbx/hosts').then((r) => r.json()).then((j) => { if (j?.ok && Array.isArray(j.hosts)) setZbxHosts(j.hosts); }).catch(() => {});
+              }}
+            />
+          )}
         </div>
       </main>
       <aside className="w-64 bg-gray-300 p-6 flex flex-col gap-4">
