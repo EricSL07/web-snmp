@@ -614,7 +614,7 @@ export async function zabbixGetPortsSummary(hostOrId: string, limit = 10) {
 }
 
 // Ensure SNMP interface exists for host
-async function zabbixEnsureSnmpInterface(hostid: string, addr: { ip?: string; dns?: string; port?: string }) {
+async function zabbixEnsureSnmpInterface(hostid: string, addr: { ip?: string; dns?: string; port?: string }, community?: string) {
   const token = await zabbixLogin();
   const ifaces = await zbxRpc<any[]>("hostinterface.get", { hostids: hostid, output: "extend" }, token, 12);
   const hasSnmp = ifaces.some((i) => Number(i.type) === 2);
@@ -630,7 +630,9 @@ async function zabbixEnsureSnmpInterface(hostid: string, addr: { ip?: string; dn
       ip: addr.ip || (useDns ? "" : "127.0.0.1"),
       dns: addr.dns || (useDns ? "localhost" : ""),
       port: addr.port || "161",
-      details: { version: 2, bulk: 1, community: "{$SNMP_COMMUNITY}" },
+      // If a specific community string is provided, set it literally on the interface; otherwise
+      // use a macro reference so it can be managed centrally.
+      details: { version: 2, bulk: 1, community: community ? community : "{$SNMP_COMMUNITY}" },
     },
     token,
     13
@@ -665,7 +667,10 @@ async function zabbixAddTemplate(hostid: string, templateName: string) {
 
 export async function zabbixEnableSnmpForHost(hostOrId: string, opts?: { ip?: string; dns?: string; community?: string; templateCandidates?: string[] }) {
   const hostid = await zabbixResolveHostId(hostOrId);
-  await zabbixEnsureSnmpInterface(hostid, { ip: opts?.ip, dns: opts?.dns, port: "161" });
+  await zabbixEnsureSnmpInterface(hostid, { ip: opts?.ip, dns: opts?.dns, port: "161" }, opts?.community);
+  // Set macro only if a macro-based approach is desired. If we set the community literally on the
+  // interface (when opts.community provided), the macro is optional. But still update macro for
+  // compatibility when community provided.
   await zabbixEnsureMacro(hostid, "{$SNMP_COMMUNITY}", opts?.community || "public");
   // Try common SNMP templates
   const candidates = opts?.templateCandidates?.length
@@ -685,6 +690,19 @@ export async function zabbixEnableSnmpForHost(hostOrId: string, opts?: { ip?: st
     }
   }
   return { hostid };
+}
+
+// Check if a host with the exact technical name exists in Zabbix
+export async function zabbixHostExists(host: string): Promise<{ exists: boolean; hostid?: string }> {
+  const token = await zabbixLogin();
+  const result = await zbxRpc<any[]>(
+    "host.get",
+    { filter: { host: [host] }, output: ["hostid", "host", "name"] },
+    token,
+    20
+  );
+  if (result?.length) return { exists: true, hostid: result[0].hostid };
+  return { exists: false };
 }
 
 
