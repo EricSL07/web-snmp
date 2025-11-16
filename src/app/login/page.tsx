@@ -10,6 +10,10 @@ export default function LoginPage() {
   const [senha, setSenha] = useState('');
   const [error, setError] = useState('');
   const router = useRouter();
+  const [loginPlaceholder, setLoginPlaceholder] = useState('LOGIN');
+  const [senhaPlaceholder, setSenhaPlaceholder] = useState('SENHA');
+  const [loginFocused, setLoginFocused] = useState(false);
+  const [senhaFocused, setSenhaFocused] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,17 +49,21 @@ export default function LoginPage() {
           {error && <p className="text-red-500 bg-red-100 p-2 rounded-lg">{error}</p>}
           <input
             type="text"
-            placeholder="LOGIN"
+            placeholder={loginPlaceholder}
             value={login}
             onChange={(e) => setLogin(e.target.value)}
-            className="text-black p-3 rounded-full bg-gray-300 text-center placeholder-gray-600 focus:outline-none"
+            onFocus={() => { setLoginPlaceholder(''); setLoginFocused(true); }}
+            onBlur={() => { if (!login) setLoginPlaceholder('LOGIN'); setLoginFocused(false); }}
+            className={`p-3 rounded-full bg-gray-300 text-center placeholder-gray-600 focus:outline-none ${loginFocused || login ? 'text-black' : 'text-gray-700'}`}
           />
           <input
             type="password"
-            placeholder="SENHA"
+            placeholder={senhaPlaceholder}
             value={senha}
             onChange={(e) => setSenha(e.target.value)}
-            className="text-black p-3 rounded-full bg-gray-300 text-center placeholder-gray-600 focus:outline-none"
+            onFocus={() => { setSenhaPlaceholder(''); setSenhaFocused(true); }}
+            onBlur={() => { if (!senha) setSenhaPlaceholder('SENHA'); setSenhaFocused(false); }}
+            className={`p-3 rounded-full bg-gray-300 text-center placeholder-gray-600 focus:outline-none ${senhaFocused || senha ? 'text-black' : 'text-gray-700'}`}
           />
           <button type="submit" className="p-3 mt-4 bg-gray-400 text-gray-800 rounded-lg hover:bg-gray-500 transition-colors">
             ENTRAR
