@@ -29,6 +29,7 @@ export default function DashboardPage() {
   const [zbxHosts, setZbxHosts] = useState<ZbxHost[]>([]);
   const [showNewSwitchModal, setShowNewSwitchModal] = useState(false);
   const router = useRouter(); // <<< INICIE O HOOK
+  const [currentUser, setCurrentUser] = useState<{ login?: string; name?: string } | null>(null);
 
   useEffect(() => {
     fetch("/api/switches")
@@ -41,6 +42,21 @@ export default function DashboardPage() {
       .then((r) => r.json())
       .then((j) => {
         if (j?.ok && Array.isArray(j.hosts)) setZbxHosts(j.hosts);
+      })
+      .catch(() => {});
+  }, []);
+
+  // Fetch current logged-in user to display in the sidebar
+  useEffect(() => {
+    fetch('/api/auth/user')
+      .then((r) => {
+        if (!r.ok) return null;
+        return r.json();
+      })
+      .then((data) => {
+        if (data) {
+          setCurrentUser(data);
+        }
       })
       .catch(() => {});
   }, []);
@@ -119,7 +135,17 @@ export default function DashboardPage() {
         {/* Usamos flex-grow para empurrar o botão para o final */}
         <div className="flex-grow"></div>
 
-        {/* <<< 3. ADICIONE O BOTÃO DE LOGOUT AQUI */}
+        {/* Mostrar usuário logado acima do botão de logout */}
+        <div>
+          <button
+            onClick={() => router.push('/profile')}
+            className="w-full bg-gray-200 text-black p-3 rounded-lg mb-2 hover:bg-gray-300 transition-colors text-center"
+            title={currentUser?.login || ''}
+          >
+            {currentUser ? `Olá, ${currentUser.name || currentUser.login}` : 'Usuário'}
+          </button>
+        </div>
+
         <button
           onClick={handleLogout}
           className="bg-red-600 text-white p-3 rounded-lg hover:bg-red-700 transition-colors w-full"
