@@ -12,6 +12,12 @@ export default function RegistrarPage() {
   const [error, setError] = useState('');
   const [passwordError, setPasswordError] = useState(''); // Estado para erro da senha
   const router = useRouter();
+  const [loginPlaceholder, setLoginPlaceholder] = useState('LOGIN');
+  const [senhaPlaceholder, setSenhaPlaceholder] = useState('SENHA');
+  const [confirmPlaceholder, setConfirmPlaceholder] = useState('CONFIRMAR SENHA');
+  const [loginFocused, setLoginFocused] = useState(false);
+  const [senhaFocused, setSenhaFocused] = useState(false);
+  const [confirmFocused, setConfirmFocused] = useState(false);
 
   const validatePassword = (password: string) => {
     const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{6,}$/;
@@ -72,33 +78,39 @@ export default function RegistrarPage() {
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-700">
       <div className="bg-gray-200 p-8 rounded-lg shadow-lg w-full max-w-sm text-center">
-        <h1 className="text-3xl font-bold mb-8 font-mono tracking-widest">WEB-SNMP</h1>
+        <h1 className="text-black text-3xl font-bold mb-8 font-mono tracking-widest">WEB-SNMP</h1>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           {error && <p className="text-red-500 bg-red-100 p-2 rounded-lg">{error}</p>}
           <input
             type="text"
-            placeholder="LOGIN"
+            placeholder={loginPlaceholder}
             value={login}
             onChange={(e) => setLogin(e.target.value)}
-            className="p-3 rounded-full bg-gray-300 text-center placeholder-gray-600 focus:outline-none"
+            onFocus={() => { setLoginPlaceholder(''); setLoginFocused(true); }}
+            onBlur={() => { if (!login) setLoginPlaceholder('LOGIN'); setLoginFocused(false); }}
+            className={`p-3 rounded-full bg-gray-300 text-center placeholder-gray-600 focus:outline-none ${loginFocused || login ? 'text-black' : 'text-gray-700'}`}
           />
           <div>
             <input
               type="password"
-              placeholder="SENHA"
+              placeholder={senhaPlaceholder}
               value={senha}
               onChange={handlePasswordChange} // Usa a nova função de change
-              className="p-3 w-full rounded-full bg-gray-300 text-center placeholder-gray-600 focus:outline-none"
+              onFocus={() => { setSenhaPlaceholder(''); setSenhaFocused(true); }}
+              onBlur={() => { if (!senha) setSenhaPlaceholder('SENHA'); setSenhaFocused(false); }}
+              className={`p-3 w-full rounded-full bg-gray-300 text-center placeholder-gray-600 focus:outline-none ${senhaFocused || senha ? 'text-black' : 'text-gray-700'}`}
             />
             {/* Exibe o erro da senha em tempo real */}
             {passwordError && <p className="text-red-500 text-sm mt-1">{passwordError}</p>}
           </div>
           <input
             type="password"
-            placeholder="CONFIRMAR SENHA"
+            placeholder={confirmPlaceholder}
             value={confirmarSenha}
             onChange={(e) => setConfirmarSenha(e.target.value)}
-            className="p-3 rounded-full bg-gray-300 text-center placeholder-gray-600 focus:outline-none"
+            onFocus={() => { setConfirmPlaceholder(''); setConfirmFocused(true); }}
+            onBlur={() => { if (!confirmarSenha) setConfirmPlaceholder('CONFIRMAR SENHA'); setConfirmFocused(false); }}
+            className={`p-3 rounded-full bg-gray-300 text-center placeholder-gray-600 focus:outline-none ${confirmFocused || confirmarSenha ? 'text-black' : 'text-gray-700'}`}
           />
           <button type="submit" className="p-3 mt-4 bg-gray-400 text-gray-800 rounded-lg hover:bg-gray-500 transition-colors">
             REGISTRAR
