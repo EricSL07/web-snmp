@@ -139,7 +139,7 @@ export default function ProfilePage() {
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-700">
       <div className="bg-gray-200 p-8 rounded-lg shadow-lg w-full max-w-md">
-        <h1 className="text-black text-3xl font-bold mb-6 text-center font-mono">MEU PERFIL</h1>
+        <h1 className="text-black text-3xl font-bold mb-6 text-center font-mono">PERFIL</h1>
 
         {message && <p className="text-green-600 bg-green-100 p-2 rounded-lg mb-4">{message}</p>}
         {error && <p className="text-red-500 bg-red-100 p-2 rounded-lg mb-4">{error}</p>}
@@ -162,6 +162,8 @@ export default function ProfilePage() {
               placeholder="Digite seu nome (opcional)"
               value={name}
               onChange={(e) => setName(e.target.value)}
+              onFocus={(e) => (e.currentTarget.placeholder = '')}
+              onBlur={(e) => (e.currentTarget.placeholder = 'Digite seu nome (opcional)')}
               className="w-full p-3 rounded-lg bg-gray-300 text-black text-center placeholder-gray-600 focus:outline-none"
             />
           </div>
@@ -177,6 +179,8 @@ export default function ProfilePage() {
               placeholder="(deixe em branco para não alterar)"
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
+              onFocus={(e) => (e.currentTarget.placeholder = '')}
+              onBlur={(e) => (e.currentTarget.placeholder = '(deixe em branco para não alterar)')}
               className="w-full p-3 rounded-lg bg-gray-300 text-black text-center placeholder-gray-600 focus:outline-none"
             />
           </div>
@@ -188,6 +192,8 @@ export default function ProfilePage() {
               placeholder="(deixe em branco para não alterar)"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
+              onFocus={(e) => (e.currentTarget.placeholder = '')}
+              onBlur={(e) => (e.currentTarget.placeholder = '(deixe em branco para não alterar)')}
               className="w-full p-3 rounded-lg bg-gray-300 text-black text-center placeholder-gray-600 focus:outline-none"
             />
           </div>
@@ -199,6 +205,8 @@ export default function ProfilePage() {
               placeholder="(deixe em branco para não alterar)"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
+              onFocus={(e) => (e.currentTarget.placeholder = '')}
+              onBlur={(e) => (e.currentTarget.placeholder = '(deixe em branco para não alterar)')}
               className="w-full p-3 rounded-lg bg-gray-300 text-black text-center placeholder-gray-600 focus:outline-none"
             />
           </div>
