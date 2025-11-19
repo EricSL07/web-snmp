@@ -29,6 +29,7 @@ export default function DashboardPage() {
   const [zbxHosts, setZbxHosts] = useState<ZbxHost[]>([]);
   const [showNewSwitchModal, setShowNewSwitchModal] = useState(false);
   const router = useRouter(); // <<< INICIE O HOOK
+  const [currentUser, setCurrentUser] = useState<{ login?: string; name?: string } | null>(null);
 
   useEffect(() => {
     fetch("/api/switches")
@@ -41,6 +42,21 @@ export default function DashboardPage() {
       .then((r) => r.json())
       .then((j) => {
         if (j?.ok && Array.isArray(j.hosts)) setZbxHosts(j.hosts);
+      })
+      .catch(() => {});
+  }, []);
+
+  // Fetch current logged-in user to display in the sidebar
+  useEffect(() => {
+    fetch('/api/auth/user')
+      .then((r) => {
+        if (!r.ok) return null;
+        return r.json();
+      })
+      .then((data) => {
+        if (data) {
+          setCurrentUser(data);
+        }
       })
       .catch(() => {});
   }, []);
@@ -67,34 +83,10 @@ export default function DashboardPage() {
           {/* Mostrar tráfego para todos os hosts Zabbix (sem filtro restritivo) */}
           <TempsMultiChart minutes={60} />
         </div>
-        <div className="flex gap-4 mt-8">
-          <button className="bg-gray-300 text-black px-6 py-2 rounded-lg hover:bg-gray-400">
-            ← VOLTAR
-          </button>
-          <button
-            onClick={() => setShowNewSwitchModal(true)}
-            className="bg-gray-300 text-black px-6 py-2 rounded-lg hover:bg-gray-400"
-          >
-            NOVO SWITCH
-          </button>
-          {showNewSwitchModal && (
-            <NewSwitchModal
-              onClose={() => setShowNewSwitchModal(false)}
-              onCreated={(hostid) => {
-                setShowNewSwitchModal(false);
-                // Refresh hosts list after creation
-                fetch("/api/zbx/hosts")
-                  .then((r) => r.json())
-                  .then((j) => {
-                    if (j?.ok && Array.isArray(j.hosts)) setZbxHosts(j.hosts);
-                  })
-                  .catch(() => {});
-              }}
-            />
-          )}
-        </div>
+        {/* Espaço principal (conteúdo da dashboard) */}
+        <div className="mt-8" />
       </main>
-      <aside className="w-64 bg-gray-300 p-6 flex flex-col gap-4">
+      <aside className="w-64 bg-gray-400 p-6 flex flex-col gap-4">
         <h2 className="text-2xl text-black font-bold text-center">
           MAIS INFORMAÇÕES
         </h2>
@@ -105,7 +97,7 @@ export default function DashboardPage() {
               <Link
                 key={h.hostid}
                 href={`/dashboard/zbx/${h.hostid}`}
-                className="block bg-gray-800 text-white p-3 rounded-lg hover:bg-gray-900 text-center mb-2"
+                className="block bg-gray-900 text-white p-3 rounded-lg hover:bg-gray-900 text-center mb-2"
                 title={h.interfaces?.[0]?.ip ? `IP: ${h.interfaces[0].ip}` : ""}
               >
                 {h.name || h.host}
@@ -116,10 +108,30 @@ export default function DashboardPage() {
           )}
         </div>
 
+        {/* Botão 'NOVO SWITCH' colocado abaixo do último host ativo */}
+        <div className="mt-4">
+          <button
+            onClick={() => setShowNewSwitchModal(true)}
+            className="w-full bg-white text-black p-3 rounded-lg hover:bg-gray-400 mb-4"
+          >
+            NOVO SWITCH
+          </button>
+        </div>
+
         {/* Usamos flex-grow para empurrar o botão para o final */}
         <div className="flex-grow"></div>
 
-        {/* <<< 3. ADICIONE O BOTÃO DE LOGOUT AQUI */}
+        {/* Mostrar usuário logado acima do botão de logout */}
+        <div>
+          <button
+            onClick={() => router.push('/profile')}
+            className="w-full bg-white text-black p-3 rounded-lg mb-2 hover:bg-gray-400 transition-colors text-center"
+            title={currentUser?.login || ''}
+          >
+            {currentUser ? `Olá, ${currentUser.name || currentUser.login}` : 'Usuário'}
+          </button>
+        </div>
+
         <button
           onClick={handleLogout}
           className="bg-red-600 text-white p-3 rounded-lg hover:bg-red-700 transition-colors w-full"
@@ -127,6 +139,21 @@ export default function DashboardPage() {
           DESLOGAR
         </button>
       </aside>
+      {showNewSwitchModal && (
+        <NewSwitchModal
+          onClose={() => setShowNewSwitchModal(false)}
+          onCreated={(hostid) => {
+            setShowNewSwitchModal(false);
+            // Refresh hosts list after creation
+            fetch("/api/zbx/hosts")
+              .then((r) => r.json())
+              .then((j) => {
+                if (j?.ok && Array.isArray(j.hosts)) setZbxHosts(j.hosts);
+              })
+              .catch(() => {});
+          }}
+        />
+      )}
     </div>
   );
 }
