@@ -6,9 +6,18 @@ export type AnsibleRunnerHandle = {
   run: () => void;
   preset: (name: "ping" | "version" | "interfaces", opts?: { autoRun?: boolean }) => void;
   setLimit: (value: string) => void;
+  runYaml: (yaml: string, opts?: { extra?: any }) => void;
+  setPlaybook: (name: string) => void;
 };
 
-function AnsibleRunnerInner({ target, credentialId }: { target?: string; credentialId?: string | null }, ref: React.Ref<AnsibleRunnerHandle>) {
+type AnsibleRunnerProps = {
+  target?: string;
+  credentialId?: string | null;
+  canRun?: boolean;
+  guardMessage?: string;
+};
+
+function AnsibleRunnerInner({ target, credentialId, canRun = true, guardMessage }: AnsibleRunnerProps, ref: React.Ref<AnsibleRunnerHandle>) {
   const [playbook, setPlaybook] = useState<string>("cisco_show_version.yml");
   const [extra, setExtra] = useState<string>("{}");
   const [limit, setLimit] = useState<string>(target || "");
@@ -44,6 +53,24 @@ function AnsibleRunnerInner({ target, credentialId }: { target?: string; credent
     }
   };
 
+  const runYaml = async (yaml: string, opts?: { extra?: any }) => {
+    setLoading(true);
+    setResult(null);
+    try {
+      const payload: any = { yaml };
+      if (limit) payload.target = limit;
+      if (credentialId) payload.credentialId = credentialId;
+      if (opts?.extra) payload.extra_vars = opts.extra;
+      const res = await fetch("/api/ansible/run", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      const data = await res.json();
+      setResult(data);
+    } catch (e: any) {
+      setResult({ error: String(e) });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const applyPreset = (name: "ping" | "version" | "interfaces", opts?: { autoRun?: boolean }) => {
     if (name === "ping") {
       setPlaybook("ping.yml");
@@ -65,6 +92,8 @@ function AnsibleRunnerInner({ target, credentialId }: { target?: string; credent
     run,
     preset: applyPreset,
     setLimit: (value: string) => setLimit(value),
+    runYaml,
+    setPlaybook: (name: string) => setPlaybook(name),
   }));
 
   return (
@@ -80,8 +109,18 @@ function AnsibleRunnerInner({ target, credentialId }: { target?: string; credent
   <input value={limit} onChange={(e) => setLimit(e.target.value)} className="w-full p-2 rounded bg-gray-700 border border-gray-600 mb-3" placeholder="ex.: mock-switch ou mock" />
       <label className="block text-sm mb-1">Extra Vars (JSON)</label>
       <textarea value={extra} onChange={(e) => setExtra(e.target.value)} rows={6} className="w-full p-2 rounded bg-gray-700 border border-gray-600 font-mono text-sm" />
-      <div className="mt-3 flex gap-2">
-        <button onClick={run} disabled={loading} className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-4 py-2 rounded">{loading ? 'Executando…' : 'Executar'}</button>
+      <div className="mt-3 flex gap-2 items-center">
+        <button
+          onClick={run}
+          disabled={loading || !canRun}
+          title={!canRun && guardMessage ? guardMessage : undefined}
+          className={`px-4 py-2 rounded ${loading || !canRun ? 'bg-blue-600/50 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'} disabled:opacity-50`}
+        >
+          {loading ? 'Executando…' : 'Executar'}
+        </button>
+        {!canRun && guardMessage && (
+          <span className="text-xs text-yellow-300">{guardMessage}</span>
+        )}
         <button onClick={() => setResult(null)} className="bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded">Limpar</button>
       </div>
       {/* credential UI moved to parent page; runner accepts credentialId prop */}
