@@ -38,6 +38,7 @@ export default function ZabbixCharts({ host, minutes = 60, mode = 'both' }: { ho
   const [err, setErr] = useState<string | null>(null);
   const [memLoading, setMemLoading] = useState(false);
   const [trafLoading, setTrafLoading] = useState(false);
+  const [trafMode] = useState<'iface' | 'total'>('total');
 
   // Fetch helpers so we can also refresh on demand
   const fetchMemOnce = async () => {
@@ -59,7 +60,7 @@ export default function ZabbixCharts({ host, minutes = 60, mode = 'both' }: { ho
   useEffect(() => {
     let alive = true;
     fetchMemOnce();
-    const id = setInterval(() => { if (alive) fetchMemOnce(); }, 180_000);
+    const id = setInterval(() => { if (alive) fetchMemOnce(); }, 5_000);
     return () => { alive = false; clearInterval(id); };
   }, [host, minutes]);
 
@@ -67,7 +68,7 @@ export default function ZabbixCharts({ host, minutes = 60, mode = 'both' }: { ho
     setTrafLoading(true);
     try {
       setErr(null);
-  const trafUrl = `/api/zbx/metrics/traffic?${host ? `host=${encodeURIComponent(host)}&` : ""}minutes=${minutes}`;
+  const trafUrl = `/api/zbx/metrics/traffic?${host ? `host=${encodeURIComponent(host)}&` : ""}minutes=${minutes}${trafMode === 'total' ? '&aggregate=1' : ''}`;
   const r = await fetch(trafUrl);
       const j = await r.json();
       if (j?.ok) setTrafData(j.traf);
@@ -82,9 +83,9 @@ export default function ZabbixCharts({ host, minutes = 60, mode = 'both' }: { ho
   useEffect(() => {
     let alive = true;
     fetchTrafOnce();
-    const id = setInterval(() => { if (alive) fetchTrafOnce(); }, 60_000);
+    const id = setInterval(() => { if (alive) fetchTrafOnce(); }, 5_000);
     return () => { alive = false; clearInterval(id); };
-  }, [host, minutes]);
+  }, [host, minutes, trafMode]);
 
   const memChart = useMemo(() => {
     if (!memData || (memData as any)?.error) return null;
@@ -94,13 +95,12 @@ export default function ZabbixCharts({ host, minutes = 60, mode = 'both' }: { ho
     const max = values.reduce((a, b) => Math.max(a, Math.abs(b || 0)), 0);
     const isBytes = max > 1000; // heuristic: if values large, treat as bytes
     const data = isBytes ? values.map((v) => v / 1_000_000) : values;
-    const labelName = memData.item?.name || "Memory";
     const unit = isBytes ? "MB" : "%";
     return {
       labels,
       datasets: [
         {
-          label: `${labelName} (${unit})`,
+          label: `Uso de memória (${unit})`,
           data,
           borderColor: "rgb(255, 159, 64)",
           backgroundColor: "rgba(255, 159, 64, 0.5)",
@@ -174,11 +174,6 @@ export default function ZabbixCharts({ host, minutes = 60, mode = 'both' }: { ho
       {showTemp && (
         <Card
           title={<span>MEMÓRIA</span>}
-          actions={(
-            <button onClick={() => { fetchMemOnce(); }} className="bg-gray-200 text-sm px-3 py-1 rounded">
-              {memLoading ? 'Recarregando…' : 'Recarregar'}
-            </button>
-          )}
         >
           {memChart ? (
             <Line options={chartOptions} data={memChart} />
@@ -189,12 +184,7 @@ export default function ZabbixCharts({ host, minutes = 60, mode = 'both' }: { ho
       )}
       {showTraffic && (
         <Card
-          title={<span>TRÁFEGO</span>}
-          actions={(
-            <button onClick={() => { fetchTrafOnce(); }} className="bg-gray-200 text-sm px-3 py-1 rounded">
-              {trafLoading ? 'Recarregando…' : 'Recarregar'}
-            </button>
-          )}
+          title={<span>TRÁFEGO (TOTAL)</span>}
         >
           {trafChart ? (
             <Line options={chartOptions} data={trafChart} />

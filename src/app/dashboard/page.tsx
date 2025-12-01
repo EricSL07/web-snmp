@@ -38,12 +38,19 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    fetch("/api/zbx/hosts")
-      .then((r) => r.json())
-      .then((j) => {
-        if (j?.ok && Array.isArray(j.hosts)) setZbxHosts(j.hosts);
-      })
-      .catch(() => {});
+    let alive = true;
+    const fetchHosts = () => {
+      fetch("/api/zbx/hosts")
+        .then((r) => r.json())
+        .then((j) => {
+          if (!alive) return;
+          if (j?.ok && Array.isArray(j.hosts)) setZbxHosts(j.hosts);
+        })
+        .catch(() => {});
+    };
+    fetchHosts();
+    const id = setInterval(() => { if (alive) fetchHosts(); }, 5_000);
+    return () => { alive = false; clearInterval(id); };
   }, []);
 
   // Fetch current logged-in user to display in the sidebar

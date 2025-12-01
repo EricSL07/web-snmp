@@ -95,6 +95,38 @@ export type ZabbixItem = {
   value_type: "0" | "1" | "2" | "3" | "4" | number; // zbx returns as string
   units?: string;
 };
+export type ZabbixTrigger = {
+  triggerid: string;
+  description: string;
+  priority: number; // 0..5
+  lastchange: string; // epoch seconds as string
+  state?: string;
+  value?: string; // 0 OK, 1 PROBLEM
+  comments?: string;
+};
+
+// Get active triggers for a host (PROBLEM state), minimal fields
+export async function zabbixGetHostTriggers(hostOrId: string) {
+  const token = await zabbixLogin();
+  const hostid = await zabbixResolveHostId(hostOrId);
+  const res = await zbxRpc<any[]>(
+    "trigger.get",
+    {
+      hostids: hostid,
+      only_true: 1,
+      active: 1,
+      skipDependent: 1,
+      filter: { value: 1 },
+      output: ["triggerid", "description", "priority", "lastchange", "state", "value", "comments"],
+      sortfield: "lastchange",
+      sortorder: "DESC",
+      limit: 20,
+    },
+    token,
+    21
+  );
+  return res as ZabbixTrigger[];
+}
 
 type HistoryPoint = { clock: string | number; value: string };
 
@@ -397,6 +429,110 @@ export async function zabbixGetTrafficSeries(host: string, minutes = 60) {
   };
 }
 
+// Build total traffic series across all interfaces: sum in/out rates per minute bucket
+export async function zabbixGetTrafficTotalSeries(host: string, minutes = 60) {
+  const hostid = await zabbixResolveHostId(host);
+  const items = await zabbixGetItems(hostid, { keyPrefix: "net.if." });
+  const inItems = items.filter((it) => it.key_.startsWith("net.if.in["));
+  const outItems = items.filter((it) => it.key_.startsWith("net.if.out["));
+  if (!inItems.length || !outItems.length) throw new Error("No interface traffic items found");
+
+  // local helper mirrors computeRatesFromCounters used above
+  const toNum = (v: any) => (v == null || v === "" ? NaN : Number(v));
+  function computeRatesFromCounters(hist: { clock: string | number; value: string }[]) {
+    if (!hist || hist.length <= 1) return { labels: hist.map((p) => new Date(Number(p.clock) * 1000).toISOString()), rates: hist.map((p) => toNum(p.value)) };
+    const labels: string[] = [];
+    const rates: number[] = [];
+    for (let i = 1; i < hist.length; i++) {
+      const prev = toNum(hist[i - 1].value);
+      const cur = toNum(hist[i].value);
+      const tprev = Number(hist[i - 1].clock);
+      const tcur = Number(hist[i].clock);
+      const dt = tcur - tprev || 1;
+      let diff = cur - prev;
+      if (diff < 0) {
+        const wrap32 = 2 ** 32;
+        const wrap64 = 2 ** 64;
+        if (prev >= 0 && prev < wrap32) diff = cur + wrap32 - prev;
+        else diff = cur + wrap64 - prev;
+      }
+      const bytesPerSec = diff / dt;
+      const bitsPerSec = bytesPerSec * 8;
+      labels.push(new Date(tcur * 1000).toISOString());
+      rates.push(bitsPerSec);
+    }
+    return { labels, rates };
+  }
+
+  // Heuristic: if computed counter rates look implausible vs raw values, assume raw already represents bytes/sec
+  function normalizeHistToBitsPerSec(hist: { clock: string | number; value: string }[]) {
+    const computed = computeRatesFromCounters(hist);
+    const rawNums = hist.map((p) => toNum(p.value)).filter((n) => Number.isFinite(n));
+    const meanRaw = rawNums.length ? rawNums.reduce((a, b) => a + b, 0) / rawNums.length : 0;
+    const meanComp = computed.rates.length ? computed.rates.reduce((a, b) => a + Math.abs(b), 0) / computed.rates.length : 0;
+    if (meanComp > 0 && meanComp / (meanRaw + 1) > 1e4) {
+      const labels = hist.map((p) => new Date(Number(p.clock) * 1000).toISOString());
+      const rates = hist.map((p) => {
+        const v = toNum(p.value);
+        return Number.isFinite(v) ? v * 8 : NaN;
+      });
+      return { labels, rates };
+    }
+    return computed;
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  const from = now - minutes * 60;
+
+  // Create index map for matching in/out items
+  const idxOf = (key: string) => key.match(/\[(.+)\]/)?.[1] || null;
+  const outByIdx = new Map<string, typeof outItems[number]>();
+  outItems.forEach((o) => { const k = idxOf(o.key_); if (k) outByIdx.set(k, o); });
+
+  // Minute-bucket sums
+  const bucketSecs = 60;
+  const sumIn = new Map<string, number>();
+  const sumOut = new Map<string, number>();
+
+  // Sum inbound per bucket across all interfaces
+  for (const it of inItems) {
+    const inHist = await zabbixGetHistory(it.itemid, Number(it.value_type) || 3, from, now);
+    const inComputed = normalizeHistToBitsPerSec(inHist);
+    for (let i = 0; i < inComputed.labels.length; i++) {
+      const ts = Date.parse(inComputed.labels[i]);
+      if (!Number.isFinite(ts)) continue;
+      const bucketTs = Math.floor(ts / 1000 / bucketSecs) * bucketSecs * 1000;
+      const key = new Date(bucketTs).toISOString();
+      const v = inComputed.rates[i];
+      if (Number.isFinite(v)) sumIn.set(key, (sumIn.get(key) || 0) + v);
+    }
+  }
+
+  // Independently sum outbound per bucket across all interfaces (not only matched pairs)
+  for (const outIt of outItems) {
+    const outHist = await zabbixGetHistory(outIt.itemid, Number(outIt.value_type) || 3, from, now);
+    const outComputed = normalizeHistToBitsPerSec(outHist);
+    for (let i = 0; i < outComputed.labels.length; i++) {
+      const ts = Date.parse(outComputed.labels[i]);
+      if (!Number.isFinite(ts)) continue;
+      const bucketTs = Math.floor(ts / 1000 / bucketSecs) * bucketSecs * 1000;
+      const key = new Date(bucketTs).toISOString();
+      const v = outComputed.rates[i];
+      if (Number.isFinite(v)) sumOut.set(key, (sumOut.get(key) || 0) + v);
+    }
+  }
+
+  const labels = Array.from(new Set([...sumIn.keys(), ...sumOut.keys()])).sort();
+  const inValues = labels.map((l) => sumIn.get(l) ?? 0);
+  const outValues = labels.map((l) => (sumOut.get(l) ?? 0));
+  return {
+    iface: { total: true },
+    labels,
+    inValues,
+    outValues,
+  };
+}
+
 // Get memory usage series for a host. Tries to find a percent or used/free/total items.
 export async function zabbixGetMemorySeries(host: string, minutes = 60) {
   const hostid = await zabbixResolveHostId(host);
@@ -541,8 +677,49 @@ export async function zabbixGetPortsSummary(hostOrId: string, limit = 10) {
     in_bps?: number;
     out_bps?: number;
     vlan?: string;
+    in_errors?: number;
+    out_errors?: number;
+    in_discards?: number;
+    out_discards?: number;
   };
   const byIndex = new Map<string, Acc>();
+
+  // Helper: compute recent rate (bits/sec) from last two history points within ~5 minutes
+  async function recentRateBps(itemid: string, valueType: number) {
+    const now = Math.floor(Date.now() / 1000);
+    const hist = await zabbixGetHistory(itemid, Number(valueType) || 3, now - 600, now);
+    const toNum = (v: any) => (v == null || v === '' ? NaN : Number(v));
+    if (!hist || hist.length === 0) return undefined;
+    if (hist.length >= 2) {
+      const prev = toNum(hist[hist.length - 2].value);
+      const cur = toNum(hist[hist.length - 1].value);
+      const tprev = Number(hist[hist.length - 2].clock);
+      const tcur = Number(hist[hist.length - 1].clock);
+      const dt = tcur - tprev || 1;
+      let diff = cur - prev;
+      if (diff < 0) {
+        const wrap32 = 2 ** 32;
+        const wrap64 = 2 ** 64;
+        if (prev >= 0 && prev < wrap32) diff = cur + wrap32 - prev;
+        else diff = cur + wrap64 - prev;
+      }
+      const bytesPerSec = diff / dt;
+      const bitsPerSec = bytesPerSec * 8;
+      return Number.isFinite(bitsPerSec) ? bitsPerSec : undefined;
+    } else {
+      // Single sample heuristic: treat value as bytes/sec if plausible
+      const v = toNum(hist[0].value);
+      const bitsPerSec = Number.isFinite(v) ? v * 8 : undefined;
+      return bitsPerSec;
+    }
+  }
+
+  // Map to store matched in/out items by index for optional rate calc
+  const inItems = ifItems.filter((it) => it.key_.startsWith("net.if.in["));
+  const outItems = ifItems.filter((it) => it.key_.startsWith("net.if.out["));
+  const idxOf = (key: string) => key.match(/\[(.+)\]/)?.[1] || null;
+  const outByIdx = new Map<string, typeof outItems[number]>();
+  outItems.forEach((o) => { const k = idxOf(o.key_); if (k) outByIdx.set(k, o); });
 
   for (const it of ifItems) {
     const idx = parseIndexFromKey(it.key_ || "");
@@ -556,10 +733,37 @@ export async function zabbixGetPortsSummary(hostOrId: string, limit = 10) {
     const key = it.key_;
     if (key.startsWith("net.if.in[")) {
       const v = Number(it.lastvalue || 0);
-      rec.in_bps = isFinite(v) ? v : undefined;
+      rec.in_bps = isFinite(v) ? v : rec.in_bps;
+      // Try to compute recent rate if lastvalue is zero
+      if (!rec.in_bps || rec.in_bps === 0) {
+        const rate = await recentRateBps(it.itemid, Number(it.value_type));
+        if (rate != null) rec.in_bps = rate;
+      }
+      // Optionally attach matching out rate for same index
+      const outIt = outByIdx.get(idx);
+      if (outIt && (!rec.out_bps || rec.out_bps === 0)) {
+        const rateOut = await recentRateBps(outIt.itemid, Number(outIt.value_type));
+        if (rateOut != null) rec.out_bps = rateOut;
+      }
     } else if (key.startsWith("net.if.out[")) {
       const v = Number(it.lastvalue || 0);
-      rec.out_bps = isFinite(v) ? v : undefined;
+      rec.out_bps = isFinite(v) ? v : rec.out_bps;
+      if (!rec.out_bps || rec.out_bps === 0) {
+        const rate = await recentRateBps(it.itemid, Number(it.value_type));
+        if (rate != null) rec.out_bps = rate;
+      }
+    } else if (key.startsWith("net.if.in.errors[")) {
+      const v = Number(it.lastvalue || 0);
+      rec.in_errors = isFinite(v) ? v : undefined;
+    } else if (key.startsWith("net.if.out.errors[")) {
+      const v = Number(it.lastvalue || 0);
+      rec.out_errors = isFinite(v) ? v : undefined;
+    } else if (key.startsWith("net.if.in.discards[")) {
+      const v = Number(it.lastvalue || 0);
+      rec.in_discards = isFinite(v) ? v : undefined;
+    } else if (key.startsWith("net.if.out.discards[")) {
+      const v = Number(it.lastvalue || 0);
+      rec.out_discards = isFinite(v) ? v : undefined;
     } else if (key.startsWith("net.if.adminstatus[")) {
       const v = String(it.lastvalue ?? "");
       rec.admin = ADMIN_STATUS[v] || v || undefined;
@@ -603,6 +807,10 @@ export async function zabbixGetPortsSummary(hostOrId: string, limit = 10) {
       in_bps: r.in_bps ?? 0,
       out_bps: r.out_bps ?? 0,
       total_bps: (r.in_bps ?? 0) + (r.out_bps ?? 0),
+      in_errors: r.in_errors ?? 0,
+      out_errors: r.out_errors ?? 0,
+      in_discards: r.in_discards ?? 0,
+      out_discards: r.out_discards ?? 0,
       vlan: r.vlan ?? null,
     }))
     // Only interfaces that are operationally up

@@ -115,21 +115,25 @@ export default function TempsMultiChart({
             const outVals: (number | null)[] = Array.isArray(j.traf.outValues)
               ? j.traf.outValues.map((x: any) => (x == null ? null : Number(x)))
               : [];
-            const map = new Map<string, number>();
+            // Aggregate in+out and bucket by minute to align across hosts
+            const bucketSecs = 60; // 1-minute buckets
+            const bucketed = new Map<string, number>();
             for (let i = 0; i < labels.length; i++) {
-              const inV = Number.isFinite(inVals[i])
-                ? (inVals[i] as number)
-                : null;
-              const outV =
-                outVals[i] != null && Number.isFinite(outVals[i] as number)
-                  ? (outVals[i] as number)
-                  : null;
+              const inV = Number.isFinite(inVals[i]) ? (inVals[i] as number) : null;
+              const outV = outVals[i] != null && Number.isFinite(outVals[i] as number) ? (outVals[i] as number) : null;
               const sum = (inV ?? 0) + (outV ?? 0);
+              const ts = Date.parse(labels[i]);
+              if (!Number.isFinite(ts)) continue;
+              const bucketTs = Math.floor(ts / 1000 / bucketSecs) * bucketSecs * 1000;
+              const bucketIso = new Date(bucketTs).toISOString();
               // convert to Mb/s (assuming values are bps)
               const mb = isFinite(sum) ? sum / 1_000_000 : null;
-              if (mb != null) map.set(labels[i], mb);
+              if (mb == null) continue;
+              // keep the latest sample within the bucket
+              bucketed.set(bucketIso, mb);
             }
-            return { h, s: { labels, valueByLabel: map } as Series };
+            const bucketLabels = Array.from(bucketed.keys()).sort();
+            return { h, s: { labels: bucketLabels, valueByLabel: bucketed } as Series };
           })
         );
         if (!alive) return;
@@ -146,7 +150,7 @@ export default function TempsMultiChart({
       }
     };
     if (hosts.length) fetchAll();
-    const id = setInterval(fetchAll, 180_000);
+    const id = setInterval(fetchAll, 5_000);
     return () => {
       alive = false;
       clearInterval(id);

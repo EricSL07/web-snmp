@@ -24,3 +24,19 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Make interactive controls clearly clickable */
+button:not(:disabled),
+input[type="button"]:not(:disabled),
+input[type="submit"]:not(:disabled),
+[role="button"]:not([aria-disabled="true"]) {
+  cursor: pointer;
+}
+
+/* Optional: clarify non-interactive state */
+button:disabled,
+input[type="button"]:disabled,
+input[type="submit"]:disabled,
+[aria-disabled="true"] {
+  cursor: not-allowed;
+}
