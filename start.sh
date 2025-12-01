@@ -21,11 +21,12 @@ check_docker() {
     fi
 }
 
-# Função para parar containers antigos
-stop_old_containers() {
-    echo "🔄 Parando containers antigos..."
-    cd infra && $DC down 2>/dev/null || true
-    cd ..
+# Função para derrubar todos os serviços (prod e dev)
+down_all() {
+    echo "🛑 Derrubando serviços padrão (docker-compose.yml)..."
+    $DC down --remove-orphans || true
+    echo "🛑 Derrubando serviços de desenvolvimento (docker-compose.dev.yml)..."
+    $DC -f docker-compose.dev.yml down --remove-orphans || true
 }
 
 # Função para iniciar os serviços (prod-like)
@@ -75,8 +76,7 @@ main() {
     case "$1" in
         "stop")
             echo "🛑 Parando todos os serviços..."
-            $DC down
-            stop_old_containers
+            down_all
             ;;
         "dev")
             echo "🧪 Iniciando em modo desenvolvimento com docker-compose.dev.yml..."
@@ -85,16 +85,9 @@ main() {
             $DC -f docker-compose.dev.yml down 2>/dev/null || true
             echo "🚀 Subindo serviços de desenvolvimento (monta o código e roda npm run dev)..."
             $DC -f docker-compose.dev.yml up --build -d
-            echo "⏳ Aguardando services..."
+            echo "⏳ Aguardando container aplicar migrações automaticamente..."
             sleep 5
-            echo "🗄️  Gerando Prisma client e aplicando migrações em dev (o container já executa isso na inicialização)..."
-            echo "⏳ Aguardando 10s para que o processo interno do container conclua npm install / prisma generate..."
-            sleep 10
-            echo "🗄️  Garantindo dependências, aplicando migrations (prisma migrate deploy) e gerando Prisma Client no container de dev..."
-            # Instalar dependências se necessário e aplicar migrations + gerar client no container de desenvolvimento
-            # Garantir que o comando rode no diretório /app dentro do container
-            $DC -f docker-compose.dev.yml exec -w /app web-app-dev sh -lc "npm install --no-audit --no-fund --silent || true; npx prisma migrate deploy || echo '⚠️  Falha ao aplicar migrations (ou já aplicadas)'; npx prisma generate || echo '⚠️  Falha ao gerar Prisma Client'"
-            echo "�📄 Se houver problemas, veja os logs do container web-app-dev:"
+            echo "📄 Se houver problemas, veja os logs do container web-app-dev:"
             echo "   $DC -f docker-compose.dev.yml logs -f web-app-dev"
             show_status
             ;;
@@ -111,7 +104,6 @@ main() {
             ;;
         *)
             check_docker
-            stop_old_containers
             start_services
             show_status
             

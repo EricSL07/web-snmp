@@ -28,10 +28,8 @@ model Switch {
 
 model Credential {
   id        String   @id @default(cuid())
-  name      String
-  username  String?
-  secret    String?   // password or private key, stored as plain text for now (consider encrypting)
-  type      String?   // e.g. "password" | "ssh-private-key"
+  username  String
+  password  String   // stored as plain text for now (consider encrypting)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }

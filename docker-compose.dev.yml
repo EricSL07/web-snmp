@@ -11,14 +11,18 @@ services:
       ZABBIX_USER: "Admin"
       ZABBIX_PASSWORD: "zabbix"
       JWT_SECRET: "sua-chave-secreta-muito-segura"
+      # Garantir que o Next.js detecte mudanças em volumes montados
+      CHOKIDAR_USEPOLLING: "true"
+      WATCHPACK_POLLING: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
     volumes:
       - .:/app
       - node_modules_dev:/app/node_modules
     ports:
       - "3000:3000"
-    command: sh -c "npm install && npx prisma generate && npm run dev"
+    command: sh -lc "mkdir -p node_modules && rm -rf node_modules/* node_modules/.??* 2>/dev/null || true; (npm ci --no-audit --no-fund || (echo 'npm ci failed; trying npm install' && npm install --no-audit --no-fund)) && for i in $(seq 1 30); do npx prisma migrate deploy && break || (echo 'Waiting for Postgres...' && sleep 2); done; npx prisma generate && npm run dev -- -H 0.0.0.0 -p 3000"
     depends_on:
-      # Lines 21-23 omitted
+      - postgres
       - zabbix-web
     networks:
       - web-snmp-network
@@ -46,10 +50,16 @@ services:
     restart: unless-stopped
     environment:
       ANSIBLE_INVENTORY: /ansible/inventories/dev/hosts.ini
+      FLASK_APP: app.py
+      FLASK_DEBUG: "1"
+      PYTHONUNBUFFERED: "1"
     volumes:
       - ./ansible:/ansible
+      - ./ansible-api:/app
     ports:
       - "5000:5000"
+    working_dir: /app
+    command: sh -lc "pip show flask >/dev/null 2>&1 || pip install --no-cache-dir flask && flask run --host 0.0.0.0 --port 5000"
     networks:
       - web-snmp-network
 
@@ -112,12 +122,13 @@ services:
       DATABASE_URL: "postgresql://app:apppass@postgres:5432/appdb?schema=public"
     volumes:
       - .:/app
-      - node_modules_dev:/app/node_modules
     networks:
       - web-snmp-network
     ports:
       - "5555:5555"
-    command: sh -c "npm install && npx prisma studio --hostname 0.0.0.0"
+    depends_on:
+      - postgres
+    command: sh -lc "for i in $(seq 1 30); do nc -z postgres 5432 && break || (echo 'Waiting for Postgres for Studio...' && sleep 2); done; npx prisma studio --hostname 0.0.0.0 --schema ./prisma/schema.prisma"
   
 volumes:
   pgdata-dev:

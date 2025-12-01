@@ -1,0 +1,47 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - 'heading "HOST ZABBIX: sw-1764594849932" [level=1] [ref=e4]'
+      - link "← VOLTAR" [ref=e5] [cursor=pointer]:
+        - /url: /dashboard/zbx/10779
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - heading "LISTA DE COMANDOS" [level=2] [ref=e8]
+        - generic [ref=e9]:
+          - button "VERSÃO (Cisco)" [ref=e10]
+          - button "SHOW IP INT BRIEF" [ref=e11]
+          - 'button "Definir alvo: sw-1764594849932" [ref=e12]'
+          - button "REINICIAR (em breve)" [disabled] [ref=e13]
+          - button "ALTERAR PORTA (em breve)" [disabled] [ref=e14]
+      - generic [ref=e16]:
+        - heading "Executar Ansible" [level=3] [ref=e17]
+        - generic [ref=e18]:
+          - 'button "Preset: VERSÃO" [ref=e19]'
+          - 'button "Preset: IP INT BRIEF" [ref=e20]'
+        - generic [ref=e21]: Playbook
+        - textbox "ping.yml" [ref=e22]: cisco_show_version.yml
+        - generic [ref=e23]: Limit (host ou grupo do inventário)
+        - 'textbox "ex.: mock-switch ou mock" [ref=e24]': sw-1764594849932
+        - generic [ref=e25]: Extra Vars (JSON)
+        - textbox [ref=e26]: "{}"
+        - generic [ref=e27]:
+          - button "Executar" [ref=e28]
+          - button "Limpar" [ref=e29]
+  - generic [ref=e34] [cursor=pointer]:
+    - button "Open Next.js Dev Tools" [ref=e35]:
+      - img [ref=e36]
+    - generic [ref=e39]:
+      - button "Open issues overlay" [ref=e40]:
+        - generic [ref=e41]:
+          - generic [ref=e42]: "4"
+          - generic [ref=e43]: "5"
+        - generic [ref=e44]:
+          - text: Issue
+          - generic [ref=e45]: s
+      - button "Collapse issues badge" [ref=e46]:
+        - img [ref=e47]
+  - alert [ref=e49]
+```

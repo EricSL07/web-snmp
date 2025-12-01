@@ -38,16 +38,17 @@ test('full user journey', async ({ page, request }) => {
   // 3) Dashboard visible and can open registrar switch
   await expect(page.locator('text=NOVO SWITCH')).toBeVisible();
   await page.click('text=NOVO SWITCH');
-  await page.waitForURL('**/dashboard/switch/registrar');
+  // Em vez de navegar, deve abrir um modal com o título específico
+  await expect(page.locator('text=Criar Host no Zabbix')).toBeVisible({ timeout: 15000 });
 
   // 4) Register a new switch
   // Ensure previous test switch is removed by hostname and ipAddress
   await request.delete(`${BASE}/api/switches?hostname=${encodeURIComponent(NEW_SWITCH.hostname)}`).catch(() => null);
   await request.delete(`${BASE}/api/switches?ipAddress=${encodeURIComponent(NEW_SWITCH.ipAddress)}`).catch(() => null);
-  await page.fill('input[placeholder="NOME DO HOST"]', NEW_SWITCH.hostname);
-  await page.fill('input[placeholder="ENDEREÇO IP"]', NEW_SWITCH.ipAddress);
-  await page.fill('input[placeholder="GRUPO DO HOST"]', NEW_SWITCH.group);
-  await page.click('button:has-text("REGISTRAR")');
+  await page.fill('input[placeholder="Host"]', NEW_SWITCH.hostname);
+  await page.fill('input[placeholder="IP"]', NEW_SWITCH.ipAddress);
+  await page.fill('input[placeholder="Grupos (vírgula separada)"]', NEW_SWITCH.group);
+  await page.click('button:has-text("Criar no Zabbix")');
   await page.waitForURL('**/dashboard');
 
   // 5) Ensure the new switch is listed and navigate to it
@@ -56,9 +57,9 @@ test('full user journey', async ({ page, request }) => {
   const switchesBody = await switchesRes.json().catch(() => null);
   console.log('switches from API after create:', switchesBody);
 
-  await expect(page.locator(`text=${NEW_SWITCH.hostname.toUpperCase()}`)).toBeVisible({ timeout: 5000 });
-  await page.click(`text=${NEW_SWITCH.hostname.toUpperCase()}`);
-  await page.waitForURL('**/dashboard/switch/**');
+  await expect(page.locator(`text=${NEW_SWITCH.hostname}`)).toBeVisible({ timeout: 5000 });
+  await page.click(`text=${NEW_SWITCH.hostname}`);
+  await page.waitForURL('**/dashboard/zbx/**');
 
   // 6) On switch page, ensure hostname is displayed
   await expect(page.locator(`h1:text-matches("${NEW_SWITCH.hostname}", "i")`)).toBeVisible();
